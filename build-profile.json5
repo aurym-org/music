@@ -7,11 +7,11 @@
         "material": {
           "certpath": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_avplayer-play-formatted-audio-arkts-master_vA9ZCLHJ3KZPnYu2M63ttFqEGOX4ZIxW2Q9T9Srqhyc=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001B6A36A91643AA26914ABADE7363D10631653307A602F89E8DE90FC5A2B5A4A71189E8484C274CCB",
+          "keyPassword": "0000001B73C0F26005FF0645F3BC4AB243F13CF9433B4271573FC924D09E826E62A0354F2A34D797061FEB",
           "profile": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_avplayer-play-formatted-audio-arkts-master_vA9ZCLHJ3KZPnYu2M63ttFqEGOX4ZIxW2Q9T9Srqhyc=.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_avplayer-play-formatted-audio-arkts-master_vA9ZCLHJ3KZPnYu2M63ttFqEGOX4ZIxW2Q9T9Srqhyc=.p12",
-          "storePassword": "0000001BFDA142F8F8001F6EAFE0AD81749B4C7E580CF1BE27F94964955D90427F76D2D195601E576FB22C"
+          "storePassword": "0000001BEECFC9A9374BCF2EED55E637D560FF9FE7EEF323614D519175DFC06383AEB23E3912BBECEA8AF1"
         }
       }
     ],

@@ -63,7 +63,7 @@ export struct MusicInfoComponent {
   CoverInfo() {
     Row() {
       Image(this.songList[this.selectIndex]?.label)
-        .width(StyleConstants.FULL_WIDTH)
+        .width(this.isFoldFull ? '90%': StyleConstants.FULL_WIDTH)
         .aspectRatio(1)
         .borderRadius($r('app.float.cover_radius_label'))
         .shadow({
