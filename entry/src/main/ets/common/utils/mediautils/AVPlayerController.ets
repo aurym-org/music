@@ -287,7 +287,8 @@ export class AVPlayerController {
             Logger.error(TAG, 'avSessionController is undefined');
             return;
           }
-          this.avSessionController.setAVMetadata();          if (this.waitPlay) {
+          this.avSessionController.setAVMetadata();
+          if (this.waitPlay) {
             this.play();
           }
           break;
