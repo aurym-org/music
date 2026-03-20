@@ -85,5 +85,5 @@ export class ContentConstants {
   /**
    * Debounce delay timestamp.
    */
-  static readonly DEBOUNCE_DELAY: number = 200;
+  static readonly DEBOUNCE_DELAY: number = 300;
 }

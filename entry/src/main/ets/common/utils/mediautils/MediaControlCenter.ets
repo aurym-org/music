@@ -41,7 +41,6 @@ export class MediaControlCenter {
   private audioSessionManager: audio.AudioSessionManager | undefined = undefined;
   private isInitted = false;
   private static mediaControlFunction: MediaControlCenter;
-  private pendingSwitchIndex: number | null = null;
   private switchTimer: number = -1;
 
   constructor() {
@@ -55,7 +54,7 @@ export class MediaControlCenter {
       Logger.error(TAG, 'mediaControlCenterHandle is undefined');
       return;
     }
-    this.mediaControlCenterHandle.loadSongAssent(this.songList[this.musicIndex].src);
+    await this.mediaControlCenterHandle.loadSongAssent(this.songList[this.musicIndex].src);
   }
   // [End loadSongAssent]
 
@@ -138,20 +137,13 @@ export class MediaControlCenter {
       if (this.switchTimer !== -1) {
         clearTimeout(this.switchTimer);
       }
-
-      this.pendingSwitchIndex = index;
       this.updateMusicIndex(index);
-
       this.switchTimer = setTimeout(async () => {
-        if (this.pendingSwitchIndex !== null) {
-          const targetIndex = this.pendingSwitchIndex;
-          this.pendingSwitchIndex = null;
-          this.switchTimer = -1;
+        this.switchTimer = -1;
 
-          await this.stop();
-          await this.loadSongAssent();
-          await this.play(targetIndex);
-        }
+        await this.stop();
+        await this.loadSongAssent();
+        await this.play();
       }, ContentConstants.DEBOUNCE_DELAY);
       return;
     }
@@ -216,21 +208,14 @@ export class MediaControlCenter {
     if (this.switchTimer !== -1) {
       clearTimeout(this.switchTimer);
     }
-
-    this.pendingSwitchIndex = nextIndex;
     this.updateMusicIndex(nextIndex);
-
     this.switchTimer = setTimeout(async () => {
-      if (this.pendingSwitchIndex !== null) {
-        const targetIndex = this.pendingSwitchIndex;
-        this.pendingSwitchIndex = null;
-        this.switchTimer = -1;
+      this.switchTimer = -1;
 
-        await this.stop();
-        await this.loadSongAssent();
-        Logger.info(TAG, `playNext: targetIndex is ${targetIndex}`);
-        await this.play();
-      }
+      await this.stop();
+      await this.loadSongAssent();
+      Logger.info(TAG, `playNext: targetIndex is ${nextIndex}`);
+      await this.play();
     }, ContentConstants.DEBOUNCE_DELAY);
   }
 
@@ -261,19 +246,13 @@ export class MediaControlCenter {
     if (this.switchTimer !== -1) {
       clearTimeout(this.switchTimer);
     }
-
-    this.pendingSwitchIndex = preIndex;
     this.updateMusicIndex(preIndex);
-
     this.switchTimer = setTimeout(async () => {
-      if (this.pendingSwitchIndex !== null) {
-        this.pendingSwitchIndex = null;
-        this.switchTimer = -1;
+      this.switchTimer = -1;
 
-        await this.stop();
-        await this.loadSongAssent();
-        await this.play();
-      }
+      await this.stop();
+      await this.loadSongAssent();
+      await this.play();
     }, ContentConstants.DEBOUNCE_DELAY);
   }
 
