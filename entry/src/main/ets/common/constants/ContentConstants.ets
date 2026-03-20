@@ -81,4 +81,9 @@ export class ContentConstants {
    * Id of BiliBili favorite folder.
    */
   static readonly FAV_ID: string = '3140829853';
+
+  /**
+   * Debounce delay timestamp.
+   */
+  static readonly DEBOUNCE_DELAY: number = 200;
 }
