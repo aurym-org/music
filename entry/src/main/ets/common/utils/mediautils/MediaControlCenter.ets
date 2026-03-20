@@ -138,16 +138,16 @@ export class MediaControlCenter {
       if (this.switchTimer !== -1) {
         clearTimeout(this.switchTimer);
       }
-      
+
       this.pendingSwitchIndex = index;
       this.updateMusicIndex(index);
-      
+
       this.switchTimer = setTimeout(async () => {
         if (this.pendingSwitchIndex !== null) {
           const targetIndex = this.pendingSwitchIndex;
           this.pendingSwitchIndex = null;
           this.switchTimer = -1;
-          
+
           await this.stop();
           await this.loadSongAssent();
           await this.play(targetIndex);
@@ -212,20 +212,20 @@ export class MediaControlCenter {
       default:
         break;
     }
-    
+
     if (this.switchTimer !== -1) {
       clearTimeout(this.switchTimer);
     }
-    
+
     this.pendingSwitchIndex = nextIndex;
     this.updateMusicIndex(nextIndex);
-    
+
     this.switchTimer = setTimeout(async () => {
       if (this.pendingSwitchIndex !== null) {
         const targetIndex = this.pendingSwitchIndex;
         this.pendingSwitchIndex = null;
         this.switchTimer = -1;
-        
+
         await this.stop();
         await this.loadSongAssent();
         Logger.info(TAG, `playNext: targetIndex is ${targetIndex}`);
@@ -257,19 +257,19 @@ export class MediaControlCenter {
       default:
         break;
     }
-    
+
     if (this.switchTimer !== -1) {
       clearTimeout(this.switchTimer);
     }
-    
+
     this.pendingSwitchIndex = preIndex;
     this.updateMusicIndex(preIndex);
-    
+
     this.switchTimer = setTimeout(async () => {
       if (this.pendingSwitchIndex !== null) {
         this.pendingSwitchIndex = null;
         this.switchTimer = -1;
-        
+
         await this.stop();
         await this.loadSongAssent();
         await this.play();
