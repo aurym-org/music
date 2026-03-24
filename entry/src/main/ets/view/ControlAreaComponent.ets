@@ -35,11 +35,11 @@ export struct ControlAreaComponent {
   @StorageLink('totalTime') totalTime: string = '00:00';
   @StorageLink('progress') value: number = 0;
   @StorageLink('progressMax') max: number = 0;
-  @State playModeIndex: number = 0;
+  @State playModeIndex: number = PlayModeSwitchList.indexOf(PreferencesUtil.getInstance().getValue('playMode') as MusicPlayMode) ?? 0;
   @StorageLink('pageShowTime') pageShowTime: number = 0;
   @StorageLink('songList') songList: SongItem[] = [];
   @State isShowPlayList: boolean = false;
-  @StorageLink('playMode') playMode: MusicPlayMode = PlayModeSwitchList[this.playModeIndex];
+  @StorageLink('playMode') playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue('playMode') as MusicPlayMode ?? PlayModeSwitchList[this.playModeIndex];
   @StorageLink('selectIndex') selectIndex: number = 0;
   @StorageLink('isSilentMode') @Watch('isSilentModeChange') isSilentMode: boolean = false;
   @State speed: number = 1;

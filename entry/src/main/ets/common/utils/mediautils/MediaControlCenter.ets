@@ -35,7 +35,7 @@ export class MediaControlCenter {
   private mediaControlCenterHandle: MediaControlCenterHandle | undefined = undefined;
   private context: common.UIAbilityContext | undefined = AppStorage.get('context');
   private songItemBuilder: SongItemBuilder = new SongItemBuilder();
-  private playMode: MusicPlayMode = MusicPlayMode.ORDER;
+  private playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue('playMode') as MusicPlayMode ?? MusicPlayMode.ORDER;
   private songList: SongItem[] = [];
   private musicIndex: number = 0;
   private audioSessionManager: audio.AudioSessionManager | undefined = undefined;
@@ -105,6 +105,7 @@ export class MediaControlCenter {
     await this.initAudioManager();
     this.setSilentModeFromPrefer();
     this.setVolumeFromPrefer();
+    this.setPlayModel(this.playMode);
     this.isInitted = true;
   }
 
@@ -276,6 +277,7 @@ export class MediaControlCenter {
       return;
     }
     this.playMode = playMode;
+    PreferencesUtil.getInstance().preferencesPut('playMode', this.playMode);
     this.avSessionController.setPlayModeToAVSession(playMode);
     this.setPlayModeToControlArea(playMode);
   }
