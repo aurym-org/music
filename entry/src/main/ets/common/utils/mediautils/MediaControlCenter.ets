@@ -47,10 +47,19 @@ export class MediaControlCenter {
     this.songItemBuilder = new SongItemBuilder();
   }
 
+  /**
+   * 设置全局加载状态
+   */
+  private setLoading(loading: boolean) {
+    AppStorage.setOrCreate('isLoading', loading);
+  }
+
   // [Start loadSongAssent]
   private async loadSongAssent() {
+    this.setLoading(true);
     await this.songItemBuilder.build(this.songList[this.musicIndex]);
     if (!this.mediaControlCenterHandle) {
+      this.setLoading(false);
       Logger.error(TAG, 'mediaControlCenterHandle is undefined');
       return;
     }

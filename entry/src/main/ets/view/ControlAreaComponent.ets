@@ -42,6 +42,7 @@ export struct ControlAreaComponent {
   @StorageLink('playMode') playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue('playMode') as MusicPlayMode ?? PlayModeSwitchList[this.playModeIndex];
   @StorageLink('selectIndex') selectIndex: number = 0;
   @StorageLink('isSilentMode') @Watch('isSilentModeChange') isSilentMode: boolean = false;
+  @StorageLink('isLoading') isLoading: boolean = false;
   @State speed: number = 1;
   @StorageLink('currentVolume') @Watch('currentVolumeChange') volume: number = 0;
   @State isShowSpeedBuild: boolean = false;
@@ -235,21 +236,37 @@ export struct ControlAreaComponent {
             MediaControlCenter.getInstance().playPrevious();
             this.pageShowTime = 0;
           })
-        Image(this.isPlay ? $r('app.media.ic_public_play') : $r('app.media.ic_public_pause'))
-          .controlImageBuilder()
-          .width(new BreakpointType({
-            sm: $r('app.float.image_play_width'),
-            md: $r('app.float.image_play_width'),
-            lg: $r('app.float.image_play_width_lg')
-          }).getValue(this.currentBreakpoint))
-          .onClick(() => {
-            if (this.isPlay) {
-              MediaControlCenter.getInstance().pause()
-            } else {
-              MediaControlCenter.getInstance().play()
-            }
-            this.pageShowTime = 0;
-          })
+        if (this.isLoading) {
+          LoadingProgress()
+            .width(new BreakpointType({
+              sm: $r('app.float.image_play_width'),
+              md: $r('app.float.image_play_width'),
+              lg: $r('app.float.image_play_width_lg')
+            }).getValue(this.currentBreakpoint))
+            .height(new BreakpointType({
+              sm: $r('app.float.image_play_width'),
+              md: $r('app.float.image_play_width'),
+              lg: $r('app.float.image_play_width_lg')
+            }).getValue(this.currentBreakpoint))
+            .color(Color.White)
+            .opacity(0.86)
+        } else {
+          Image(this.isPlay ? $r('app.media.ic_public_play') : $r('app.media.ic_public_pause'))
+            .controlImageBuilder()
+            .width(new BreakpointType({
+              sm: $r('app.float.image_play_width'),
+              md: $r('app.float.image_play_width'),
+              lg: $r('app.float.image_play_width_lg')
+            }).getValue(this.currentBreakpoint))
+            .onClick(() => {
+              if (this.isPlay) {
+                MediaControlCenter.getInstance().pause()
+              } else {
+                MediaControlCenter.getInstance().play()
+              }
+              this.pageShowTime = 0;
+            })
+        }
         Image($r('app.media.ic_public_next'))
           .controlImageBuilder()
           .width(this.currentBreakpoint === BreakpointConstants.BREAKPOINT_LG ?
