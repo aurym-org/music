@@ -58,16 +58,15 @@ export class MediaControlCenter {
   // [Start loadSongAssent]
   private async loadSongAssent() {
     const currentVersion = this.switchVersion;
-    this.setLoading(true);
     if (this.switchVersion !== currentVersion) return;
     await this.songItemBuilder.build(this.songList[this.musicIndex]);
     if (!this.mediaControlCenterHandle) {
-      this.setLoading(false);
       Logger.error(TAG, 'mediaControlCenterHandle is undefined');
       return;
     }
     if (this.switchVersion !== currentVersion) return;
     await this.mediaControlCenterHandle.loadSongAssent(this.songList[this.musicIndex].src);
+    this.setLoading(false);
   }
   // [End loadSongAssent]
 
@@ -119,6 +118,7 @@ export class MediaControlCenter {
     this.setSilentModeFromPrefer();
     this.setVolumeFromPrefer();
     this.setPlayModel(this.playMode);
+    this.setLoading(false);
     this.isInitted = true;
   }
 
@@ -148,6 +148,7 @@ export class MediaControlCenter {
     }
     this.avSessionController.setAVMetadata();
     if (index !== this.musicIndex) {
+      this.setLoading(true);
       this.switchVersion++;
       AppStorage.setOrCreate('switchVersion', this.switchVersion);
       const currentVersion = this.switchVersion;
@@ -223,6 +224,7 @@ export class MediaControlCenter {
       default:
         break;
     }
+    this.setLoading(true);
     this.switchVersion++;
     AppStorage.setOrCreate('switchVersion', this.switchVersion);
     const currentVersion = this.switchVersion;
@@ -265,6 +267,7 @@ export class MediaControlCenter {
       default:
         break;
     }
+    this.setLoading(true);
     this.switchVersion++;
     AppStorage.setOrCreate('switchVersion', this.switchVersion);
     const currentVersion = this.switchVersion;

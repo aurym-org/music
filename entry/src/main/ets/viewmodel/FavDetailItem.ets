@@ -14,7 +14,12 @@ export interface FavDetailItemModel {
   title: string,
   upper: upper,
   cover: string,
-  bvid: string
+  bvid: string,
+  ugc: ugc
+}
+
+interface ugc {
+  first_cid: number
 }
 
 interface upper {

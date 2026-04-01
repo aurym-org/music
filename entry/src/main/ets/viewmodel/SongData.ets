@@ -42,11 +42,11 @@ export class SongItem {
    */
   index: number = 0;
   /**
-   * Is the background dark.
-   */
-  isDarkBackground: boolean = false;
-  /**
    * bvid in BiliBili.
    */
   bvid: string = '';
+  /**
+   * cid in BiliBili.
+   */
+  cid: number = 0;
 }

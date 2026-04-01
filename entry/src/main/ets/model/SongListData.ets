@@ -21,14 +21,14 @@ const TAG = 'SongListData';
 
 function convertToSongItem(item: FavDetailItemModel, index: number): SongItem {
   return {
-    id: item.id || index,
-    title: item.title || '未知歌曲',
-    singer: item.upper.name || '未知歌手',
-    label: item.cover + '@.webp' as string,
+    id: item.id,
+    title: item.title,
+    singer: item.upper.name,
+    label: item.cover + '@.webp',
     src: '',
     index: index,
-    bvid: item.bvid || '',
-    isDarkBackground: false
+    bvid: item.bvid,
+    cid: item.ugc.first_cid
   };
 }
 

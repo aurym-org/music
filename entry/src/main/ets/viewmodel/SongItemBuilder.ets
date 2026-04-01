@@ -17,7 +17,6 @@ import { common } from '@kit.AbilityKit';
 import { SongItem } from './SongData';
 import { url } from '@kit.ArkTS';
 import Logger from '../common/utils/Logger';
-import { BiliView } from './BiliView';
 import { http } from '@kit.NetworkKit';
 import { PreferencesUtil } from '../common/utils/PreferencesUtil';
 import { BiliPlayUrl } from './BiliPlayUrl';
@@ -60,8 +59,9 @@ export default class SongItemBuilder {
     this.currentRequest = null;
   }
 
-  async sendRequest(url: string) {
+  async getBiliPlayUrl(bvid: string, cid: number): Promise<BiliPlayUrl> {
     this.cleanHttpRequest();
+    const url = `https://api.bilibili.com/x/player/playurl?cid=${cid}&bvid=${bvid}&fnval=16`;
     const httpRequest = http.createHttp();
     this.currentRequest = httpRequest;
     const response = await httpRequest.request(url, {
@@ -78,21 +78,11 @@ export default class SongItemBuilder {
     if (response.responseCode !== 200) {
       throw new Error(`HTTP error: ${response.responseCode}`);
     }
-    const result: BiliView | BiliPlayUrl = JSON.parse(response.result as string);
+    const result: BiliPlayUrl = JSON.parse(response.result as string);
     if (result.code !== 0) {
       throw new Error(`API error: ${result.message}`);
     }
     return result;
-  }
-
-  async getBiliView(bvid: string): Promise<BiliView | BiliPlayUrl> {
-    const url = `https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`;
-    return this.sendRequest(url);
-  }
-
-  async getBiliPlayUrl(bvid: string, cid: number): Promise<BiliView | BiliPlayUrl> {
-    const url = `https://api.bilibili.com/x/player/playurl?cid=${cid}&bvid=${bvid}&fnval=16`;
-    return this.sendRequest(url);
   }
 
   public async build(songItem: SongItem): Promise<void> {
@@ -114,13 +104,8 @@ export default class SongItemBuilder {
     }
     if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
     try {
-      this.cleanHttpRequest();
       if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
-      const viewResult = await this.getBiliView(bvid) as BiliView;
-      const cid = viewResult.data.cid;
-
-      if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
-      const playUrlResult = await this.getBiliPlayUrl(bvid, cid) as BiliPlayUrl;
+      const playUrlResult = await this.getBiliPlayUrl(bvid, this.songItem.cid);
       const audioList = playUrlResult.data.dash.audio;
       if (!audioList || !Array.isArray(audioList)) {
         throw new Error('No audio list in playinfo');
