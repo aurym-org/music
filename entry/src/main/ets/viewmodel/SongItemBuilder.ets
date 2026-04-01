@@ -61,7 +61,7 @@ export default class SongItemBuilder {
 
   async getBiliPlayUrl(bvid: string, cid: number): Promise<BiliPlayUrl> {
     this.cleanHttpRequest();
-    const url = `https://api.bilibili.com/x/player/playurl?cid=${cid}&bvid=${bvid}&fnval=16`;
+    const url = `https://api.bilibili.com/x/player/playurl?cid=${cid}&bvid=${bvid}&fnval=16&qn=16`;
     const httpRequest = http.createHttp();
     this.currentRequest = httpRequest;
     const response = await httpRequest.request(url, {
@@ -106,19 +106,11 @@ export default class SongItemBuilder {
     try {
       if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
       const playUrlResult = await this.getBiliPlayUrl(bvid, this.songItem.cid);
-      const audioList = playUrlResult.data.dash.audio;
-      if (!audioList || !Array.isArray(audioList)) {
-        throw new Error('No audio list in playinfo');
-      }
+      const targetAudioUrl = playUrlResult.data.dash.audio[0].baseUrl;
 
-      const targetAudio = audioList.find(audio => audio.id === 30216);
-      if (!targetAudio || !targetAudio.baseUrl) {
-        throw new Error('Audio with id 30216 not found or missing baseUrl');
-      }
       if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
-
-      this.putAudioUrl(bvid, targetAudio.baseUrl);
-      this.songItem.src = targetAudio.baseUrl;
+      this.putAudioUrl(bvid, targetAudioUrl);
+      this.songItem.src = targetAudioUrl;
       Logger.info(TAG, 'MediaAssetBuilder build realUrl:' + this.songItem.src);
     } catch (error) {
       Logger.error(TAG, `MediaAssetBuilder build error: ${error.message}`);
