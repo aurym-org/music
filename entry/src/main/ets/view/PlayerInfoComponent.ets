@@ -77,7 +77,7 @@ export struct PlayerInfoComponent {
         .aspectRatio(1)
         .objectFit(ImageFit.Cover)
         .opacity(0.5)
-        .blur(20)
+        .blur(PlayerConstants.IMAGE_BLUR)
       Row() {
         if (this.isFoldFull) {
           Column() {
