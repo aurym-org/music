@@ -17,9 +17,12 @@ import { common } from '@kit.AbilityKit';
 import { SongItem } from './SongData';
 import { url } from '@kit.ArkTS';
 import Logger from '../common/utils/Logger';
-import { BiliPlayInfo } from './BiliPlayInfo';
+import { BiliView } from './BiliView';
 import { http } from '@kit.NetworkKit';
 import { PreferencesUtil } from '../common/utils/PreferencesUtil';
+import { BiliPlayUrl } from './BiliPlayUrl';
+
+const TAG = 'SongItemBuilder'
 
 interface CacheData {
   url: string,
@@ -29,6 +32,7 @@ interface CacheData {
 export default class SongItemBuilder {
   private context: common.UIAbilityContext | undefined = AppStorage.get('context');
   private songItem: SongItem | null = null;
+  private currentRequest: http.HttpRequest | null = null;
 
   putAudioUrl(bvid: string, raw_url: string): void {
     const data = JSON.stringify({
@@ -51,54 +55,73 @@ export default class SongItemBuilder {
     return null;
   }
 
+  cleanHttpRequest() {
+    this.currentRequest?.destroy();
+    this.currentRequest = null;
+  }
+
+  async sendRequest(url: string) {
+    this.cleanHttpRequest();
+    const httpRequest = http.createHttp();
+    this.currentRequest = httpRequest;
+    const response = await httpRequest.request(url, {
+      method: http.RequestMethod.GET,
+      header: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://www.bilibili.com/',
+        'Accept-Language': 'zh-CN,zh;q=0.9'
+      },
+      connectTimeout: 10000,
+      readTimeout: 10000
+    });
+    this.cleanHttpRequest();
+    if (response.responseCode !== 200) {
+      throw new Error(`HTTP error: ${response.responseCode}`);
+    }
+    const result: BiliView | BiliPlayUrl = JSON.parse(response.result as string);
+    if (result.code !== 0) {
+      throw new Error(`API error: ${result.message}`);
+    }
+    return result;
+  }
+
+  async getBiliView(bvid: string): Promise<BiliView | BiliPlayUrl> {
+    const url = `https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`;
+    return this.sendRequest(url);
+  }
+
+  async getBiliPlayUrl(bvid: string, cid: number): Promise<BiliView | BiliPlayUrl> {
+    const url = `https://api.bilibili.com/x/player/playurl?cid=${cid}&bvid=${bvid}&fnval=16`;
+    return this.sendRequest(url);
+  }
+
   public async build(songItem: SongItem): Promise<void> {
+    const currentVersion = AppStorage.get<number>('switchVersion') ?? 0;
     this.songItem = songItem;
     if (!this.context) {
       return;
     }
     const bvid = songItem.bvid;
     if (!bvid) {
-      Logger.error('MediaAssetBuilder build: bvid is empty');
+      Logger.error(TAG, 'MediaAssetBuilder build: bvid is empty');
       return;
     }
     let realUrl = await this.getAudioUrl(bvid);
     if (realUrl) {
+      if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
       this.songItem.src = realUrl;
       return;
     }
+    if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
     try {
-      // 1. 请求视频页面
-      const url = `https://www.bilibili.com/video/${bvid}/`;
-      const httpRequest = http.createHttp();
-      const response = await httpRequest.request(url, {
-        method: http.RequestMethod.GET,
-        header: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Referer': 'https://www.bilibili.com/',
-          'Accept-Language': 'zh-CN,zh;q=0.9'
-        },
-        connectTimeout: 10000,
-        readTimeout: 10000
-      });
+      this.cleanHttpRequest();
+      if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+      const viewResult = await this.getBiliView(bvid) as BiliView;
+      const cid = viewResult.data.cid;
 
-      if (response.responseCode !== 200) {
-        throw new Error(`HTTP error: ${response.responseCode}`);
-      }
-
-      const html = response.result as string;
-
-      // 2. 提取 __playinfo__ 的 JSON 字符串
-      // 正则匹配 window.__playinfo__= {...}; 注意处理可能的换行和空格
-      const match = html.match(/window\.__playinfo__\s*=\s*(\{[\s\S]*?\})\s*;?\s*<\/script>/);
-      if (!match || !match[1]) {
-        throw new Error('__playinfo__ not found');
-      }
-
-      const playinfoJson = match[1];
-      const playinfo: BiliPlayInfo = JSON.parse(playinfoJson);
-
-      // 3. 查找音频流
-      const audioList = playinfo.data.dash.audio;
+      if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+      const playUrlResult = await this.getBiliPlayUrl(bvid, cid) as BiliPlayUrl;
+      const audioList = playUrlResult.data.dash.audio;
       if (!audioList || !Array.isArray(audioList)) {
         throw new Error('No audio list in playinfo');
       }
@@ -107,13 +130,13 @@ export default class SongItemBuilder {
       if (!targetAudio || !targetAudio.baseUrl) {
         throw new Error('Audio with id 30216 not found or missing baseUrl');
       }
+      if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+
       this.putAudioUrl(bvid, targetAudio.baseUrl);
       this.songItem.src = targetAudio.baseUrl;
-      Logger.info('MediaAssetBuilder build realUrl:' + this.songItem.src);
-
+      Logger.info(TAG, 'MediaAssetBuilder build realUrl:' + this.songItem.src);
     } catch (error) {
-      Logger.error(`MediaAssetBuilder build error: ${error.message}`);
-      // 发生错误时保持原有 songItem 不变，或可设置默认值
+      Logger.error(TAG, `MediaAssetBuilder build error: ${error.message}`);
     }
     return;
   }

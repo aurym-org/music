@@ -23,8 +23,8 @@ function convertToSongItem(item: FavDetailItemModel, index: number): SongItem {
   return {
     id: item.id || index,
     title: item.title || '未知歌曲',
-    singer: item.upper?.name || '未知歌手',
-    label: item.cover as string,
+    singer: item.upper.name || '未知歌手',
+    label: item.cover + '@.webp' as string,
     src: '',
     index: index,
     bvid: item.bvid || '',
@@ -48,7 +48,8 @@ async function getFavoriteDetail(mediaId: string, pageSize: number = 40): Promis
   while (hasMore) {
     try {
       const url = `https://api.bilibili.com/x/v3/fav/resource/list?media_id=${mediaId}&pn=${currentPage}&ps=${pageSize}&keyword=&order=mtime&type=0&tid=0&platform=web&web_location=0.0`;
-      const response = await http.createHttp().request(url, {
+      const httpRequest = http.createHttp();
+      const response = await httpRequest.request(url, {
         method: http.RequestMethod.GET,
         header: {
           'accept': '*/*',
@@ -60,6 +61,7 @@ async function getFavoriteDetail(mediaId: string, pageSize: number = 40): Promis
         connectTimeout: 10000,
         readTimeout: 10000
       });
+      httpRequest.destroy();
       if (response.responseCode !== 200) {
         throw new Error(`HTTP 错误: ${response.responseCode}`);
       }
@@ -68,7 +70,7 @@ async function getFavoriteDetail(mediaId: string, pageSize: number = 40): Promis
         throw new Error(`API 错误: ${responseData.code} - ${responseData.message}`);
       }
 
-      const currentSongs = responseData.data.medias?.map((value, idx) => convertToSongItem(value, idx)) || [];
+      const currentSongs = responseData.data.medias.map((value, idx) => convertToSongItem(value, idx)) || [];
       Logger.info(TAG, `第 ${currentPage} 页: 获取到 ${currentSongs.length} 条数据`);
 
       songList = songList.concat(currentSongs);

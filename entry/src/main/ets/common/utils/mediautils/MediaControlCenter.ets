@@ -42,6 +42,7 @@ export class MediaControlCenter {
   private isInitted = false;
   private static mediaControlFunction: MediaControlCenter;
   private switchTimer: number = -1;
+  private switchVersion: number = 0;
 
   constructor() {
     this.songItemBuilder = new SongItemBuilder();
@@ -56,13 +57,16 @@ export class MediaControlCenter {
 
   // [Start loadSongAssent]
   private async loadSongAssent() {
+    const currentVersion = this.switchVersion;
     this.setLoading(true);
+    if (this.switchVersion !== currentVersion) return;
     await this.songItemBuilder.build(this.songList[this.musicIndex]);
     if (!this.mediaControlCenterHandle) {
       this.setLoading(false);
       Logger.error(TAG, 'mediaControlCenterHandle is undefined');
       return;
     }
+    if (this.switchVersion !== currentVersion) return;
     await this.mediaControlCenterHandle.loadSongAssent(this.songList[this.musicIndex].src);
   }
   // [End loadSongAssent]
@@ -105,9 +109,9 @@ export class MediaControlCenter {
     if (this.isInitted) {
       return;
     }
-    await getFavoriteDetail(ContentConstants.FAV_ID).then(_ =>
-      this.songList = AppStorage.get('songList')!
-    );
+    AppStorage.setOrCreate('switchVersion', this.switchVersion);
+    await getFavoriteDetail(ContentConstants.FAV_ID);
+    this.songList = AppStorage.get('songList')!;
     await this.initHandle();
     await this.loadSongAssent();
     await this.initAVSession();
@@ -144,15 +148,20 @@ export class MediaControlCenter {
     }
     this.avSessionController.setAVMetadata();
     if (index !== this.musicIndex) {
+      this.switchVersion++;
+      AppStorage.setOrCreate('switchVersion', this.switchVersion);
+      const currentVersion = this.switchVersion;
       if (this.switchTimer !== -1) {
         clearTimeout(this.switchTimer);
       }
       this.updateMusicIndex(index);
       this.switchTimer = setTimeout(async () => {
         this.switchTimer = -1;
-
+        if (this.switchVersion !== currentVersion) return;
         await this.stop();
+        if (this.switchVersion !== currentVersion) return;
         await this.loadSongAssent();
+        if (this.switchVersion !== currentVersion) return;
         await this.play();
       }, ContentConstants.DEBOUNCE_DELAY);
       return;
@@ -214,16 +223,20 @@ export class MediaControlCenter {
       default:
         break;
     }
-
+    this.switchVersion++;
+    AppStorage.setOrCreate('switchVersion', this.switchVersion);
+    const currentVersion = this.switchVersion;
     if (this.switchTimer !== -1) {
       clearTimeout(this.switchTimer);
     }
     this.updateMusicIndex(nextIndex);
     this.switchTimer = setTimeout(async () => {
       this.switchTimer = -1;
-
+      if (this.switchVersion !== currentVersion) return;
       await this.stop();
+      if (this.switchVersion !== currentVersion) return;
       await this.loadSongAssent();
+      if (this.switchVersion !== currentVersion) return;
       Logger.info(TAG, `playNext: targetIndex is ${nextIndex}`);
       await this.play();
     }, ContentConstants.DEBOUNCE_DELAY);
@@ -252,16 +265,20 @@ export class MediaControlCenter {
       default:
         break;
     }
-
+    this.switchVersion++;
+    AppStorage.setOrCreate('switchVersion', this.switchVersion);
+    const currentVersion = this.switchVersion;
     if (this.switchTimer !== -1) {
       clearTimeout(this.switchTimer);
     }
     this.updateMusicIndex(preIndex);
     this.switchTimer = setTimeout(async () => {
       this.switchTimer = -1;
-
+      if (this.switchVersion !== currentVersion) return;
       await this.stop();
+      if (this.switchVersion !== currentVersion) return;
       await this.loadSongAssent();
+      if (this.switchVersion !== currentVersion) return;
       await this.play();
     }, ContentConstants.DEBOUNCE_DELAY);
   }

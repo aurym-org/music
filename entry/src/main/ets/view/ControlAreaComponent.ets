@@ -42,7 +42,7 @@ export struct ControlAreaComponent {
   @StorageLink('playMode') playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue('playMode') as MusicPlayMode ?? PlayModeSwitchList[this.playModeIndex];
   @StorageLink('selectIndex') selectIndex: number = 0;
   @StorageLink('isSilentMode') @Watch('isSilentModeChange') isSilentMode: boolean = false;
-  @StorageLink('isLoading') isLoading: boolean = false;
+  @StorageLink('isLoading') isLoading: boolean = true;
   @State speed: number = 1;
   @StorageLink('currentVolume') @Watch('currentVolumeChange') volume: number = 0;
   @State isShowSpeedBuild: boolean = false;

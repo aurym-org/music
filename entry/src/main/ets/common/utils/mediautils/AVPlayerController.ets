@@ -17,12 +17,19 @@ export class AVPlayerController {
   private speedMap: Map<number, media.PlaybackSpeed> = new Map();
 
   async setPlayerUrl(url: string) {
+    const currentVersion = AppStorage.get<number>('switchVersion') ?? 0;
     const headers: Record<string, string> = {
       'Referer': 'https://www.bilibili.com/',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     };
     let mediaSource: media.MediaSource = media.createMediaSourceWithUrl(url, headers);
-    await this.avPlayer?.setMediaSource(mediaSource);
+    let playStrategy : media.PlaybackStrategy = {
+      preferredBufferDuration: 1,
+    };
+    if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+    await this.avPlayer!.reset();
+    if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+    await this.avPlayer!.setMediaSource(mediaSource, playStrategy);
   }
 
   // [Start loadSongAssent]
@@ -173,7 +180,6 @@ export class AVPlayerController {
       return;
     }
     await this.avPlayer.stop();
-    await this.avPlayer.reset();
     Logger.info(TAG, 'avPlayer stop success')
   }
   // [End stop]
