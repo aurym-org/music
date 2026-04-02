@@ -42,7 +42,7 @@ export class AVPlayerController {
       return;
     }
     await this.setPlayerUrl(src);
-    Logger.info(TAG, `set avPlayer url is ${this.avPlayer.url}，curState is ${this.avPlayer?.state}`);
+    Logger.info(TAG, `set avPlayer url is ${this.avPlayer.url}, curState is ${this.avPlayer?.state}`);
   }
   // [End loadSongAssent]
 
@@ -79,9 +79,9 @@ export class AVPlayerController {
     }
     this.avPlayer = await media.createAVPlayer();
     this.genSpeedMap();
-    Logger.info(TAG, `createAVPlayer success， curState is ${this.avPlayer?.state}`);
+    Logger.info(TAG, `createAVPlayer success, curState is ${this.avPlayer?.state}`);
     this.setAVPlayerCallbacks();
-    Logger.info(TAG, `setAVPlayerCallbacks success，curState is ${this.avPlayer?.state}`);
+    Logger.info(TAG, `setAVPlayerCallbacks success, curState is ${this.avPlayer?.state}`);
   }
   // [End initAVPlayer]
 

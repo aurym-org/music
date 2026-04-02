@@ -533,7 +533,11 @@ struct MusicListContainer {
         .layoutWeight(1)
       }
       .onClick(() => {
-        MediaControlCenter.getInstance().play(this.index!)
+        if (this.selectIndex === this.index && this.isPlay) {
+          MediaControlCenter.getInstance().pause();
+        } else {
+          MediaControlCenter.getInstance().play(this.index!);
+        }
       })
       .height($r('app.float.list_item_height'))
       .width(StyleConstants.FULL_WIDTH)
