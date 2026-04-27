@@ -15,8 +15,48 @@ export class AVPlayerController {
   private waitPlay: boolean = false;
   static avPlayerController: AVPlayerController | undefined;
   private speedMap: Map<number, media.PlaybackSpeed> = new Map();
+  private preparedResolve?: () => void;
+  private preparedReject?: (error: Error) => void;
+  private preparedPromise?: Promise<void>;
+  private preparedTimeoutId?: number;
+
+  public waitForPrepared(timeoutMs: number = 10000): Promise<void> {
+    if (this.currentState === 'prepared') {
+      return Promise.resolve();
+    }
+    if (!this.preparedPromise) {
+      this.preparedPromise = new Promise((resolve, reject) => {
+        this.preparedResolve = resolve;
+        this.preparedReject = reject;
+
+        const timeoutId = setTimeout(() => {
+          const error = new Error('waitForPrepared timeout');
+          if (this.preparedReject) {
+            this.preparedReject(error);
+            this.cleanupPreparedPromise();
+          }
+        }, timeoutMs);
+        this.preparedTimeoutId = timeoutId;
+      });
+    }
+    return this.preparedPromise;
+  }
+
+  private cleanupPreparedPromise() {
+    if (this.preparedTimeoutId) {
+      clearTimeout(this.preparedTimeoutId);
+      this.preparedTimeoutId = undefined;
+    }
+    this.preparedResolve = undefined;
+    this.preparedReject = undefined;
+    this.preparedPromise = undefined;
+  }
 
   async setPlayerUrl(url: string) {
+    if (this.preparedReject) {
+      this.preparedReject(new Error('setPlayerUrl called with new url, cancelling previous wait'));
+      this.cleanupPreparedPromise();
+    }
     const currentVersion = AppStorage.get<number>('switchVersion') ?? 0;
     const headers: Record<string, string> = {
       'Referer': 'https://www.bilibili.com/',
@@ -42,6 +82,7 @@ export class AVPlayerController {
       return;
     }
     await this.setPlayerUrl(src);
+    await this.waitForPrepared();
     Logger.info(TAG, `set avPlayer url is ${this.avPlayer.url}, curState is ${this.avPlayer?.state}`);
   }
   // [End loadSongAssent]
@@ -299,6 +340,10 @@ export class AVPlayerController {
           if (this.waitPlay) {
             this.play();
           }
+          if (this.preparedResolve) {
+            this.preparedResolve();
+            this.cleanupPreparedPromise();
+          }
           break;
         // [StartExclude stateChangeCallback]
         case 'playing':
@@ -318,6 +363,10 @@ export class AVPlayerController {
           break;
         case 'error':
           Logger.info(TAG, `state error called , resson is ${reason}`);
+          if (this.preparedReject) {
+            this.preparedReject(new Error(`AVPlayer entered error state, reason: ${reason}`));
+            this.cleanupPreparedPromise();
+          }
           break;
         default:
           Logger.info(TAG, `state unknown called , resson is ${reason}`);
