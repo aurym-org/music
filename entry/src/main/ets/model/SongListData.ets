@@ -16,6 +16,7 @@ import { SongItem } from "../viewmodel/SongData";
 import { http } from '@kit.NetworkKit';
 import Logger from "../common/utils/Logger";
 import { FavDetail, FavDetailItemModel } from "../viewmodel/FavDetailItem";
+import { ContentConstants } from "../common/constants/ContentConstants";
 
 const TAG = 'SongListData';
 
@@ -38,7 +39,7 @@ function convertToSongItem(item: FavDetailItemModel, index: number): SongItem {
  * @param pageSize 每页数量，固定为 40
  * @returns 包含所有音频项的数组
  */
-async function getFavoriteDetail(mediaId: string, pageSize: number = 40): Promise<void> {
+  async function getFavoriteDetail(mediaId: number, pageSize: number = 40): Promise<void> {
   let currentPage: number = 1;           // 当前页码，从第一页开始
   let hasMore: boolean = true;           // 是否还有更多数据
 
@@ -55,7 +56,7 @@ async function getFavoriteDetail(mediaId: string, pageSize: number = 40): Promis
           'accept': '*/*',
           'accept-language': 'zh-CN,zh;q=0.9',
           'origin': 'https://space.bilibili.com',
-          'referer': `https://space.bilibili.com/44919953/favlist?fid=${mediaId}&ftype=create`,
+          'referer': `https://space.bilibili.com/${ContentConstants.UP_MID}/favlist?fid=${mediaId}&ftype=create`,
           'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'
         },
         connectTimeout: 10000,

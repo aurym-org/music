@@ -80,7 +80,12 @@ export class ContentConstants {
   /**
    * Id of BiliBili favorite folder.
    */
-  static readonly FAV_ID: string = '3140829853';
+  static readonly FAV_ID: number = 3140829853;
+
+  /**
+   * Id of BiliBili upper.
+   */
+  static readonly UP_MID: number = 44919953;
 
   /**
    * Debounce delay timestamp.
