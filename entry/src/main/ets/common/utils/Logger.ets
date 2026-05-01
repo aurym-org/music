@@ -42,4 +42,4 @@ class Logger {
   }
 }
 
-export default new Logger('[AVPlayerArkTs]');
+export default new Logger('[Aurum]');
