@@ -1,15 +1,15 @@
-export interface FavDetail {
+export interface BiliFavDetail {
   code: number,
   message: string,
   data: data
 }
 
 interface data {
-  medias: FavDetailItemModel[],
+  medias: BiliFavDetailItemModel[],
   has_more: boolean
 }
 
-export interface FavDetailItemModel {
+export interface BiliFavDetailItemModel {
   id: number,
   title: string,
   upper: upper,

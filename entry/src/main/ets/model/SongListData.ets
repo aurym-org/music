@@ -15,12 +15,12 @@
 import { SongItem } from "../viewmodel/SongData";
 import { http } from '@kit.NetworkKit';
 import Logger from "../common/utils/Logger";
-import { FavDetail, FavDetailItemModel } from "../viewmodel/FavDetailItem";
+import { BiliFavDetail, BiliFavDetailItemModel } from "../viewmodel/BiliFavDetail";
 import { ContentConstants } from "../common/constants/ContentConstants";
 
 const TAG = 'SongListData';
 
-function convertToSongItem(item: FavDetailItemModel, index: number): SongItem {
+function convertToSongItem(item: BiliFavDetailItemModel, index: number): SongItem {
   return {
     id: item.id,
     title: item.title,
@@ -66,7 +66,7 @@ function convertToSongItem(item: FavDetailItemModel, index: number): SongItem {
       if (response.responseCode !== 200) {
         throw new Error(`HTTP 错误: ${response.responseCode}`);
       }
-      const responseData: FavDetail = JSON.parse(response.result as string);
+      const responseData: BiliFavDetail = JSON.parse(response.result as string);
       if (responseData.code !== 0) {
         throw new Error(`API 错误: ${responseData.code} - ${responseData.message}`);
       }
