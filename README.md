@@ -51,7 +51,6 @@ git clone https://github.com/fbotp/Aurum.git
 │  │     │  └──MediaTools.ets                             // 媒体工具处理类
 │  │     ├──BackgroundUtil                                // 后台任务类
 │  │     ├──BreakpointSystem                              // 断点系统类
-│  │     ├──ColorConversion                               // 颜色转换类
 │  │     ├──Logger                                        // 日志类
 │  │     ├──PreferencesUtil                               // 首选项工具类
 │  │     └──ResourceConversion.ets                        // 资源工具类
