@@ -1,6 +1,6 @@
 # Aurum
 
-> 从 B 站收藏夹里淘金。
+> *名字里的金，是昕昀的日光。*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![HarmonyOS](https://img.shields.io/badge/HarmonyOS-Next-black)](https://developer.huawei.com/consumer/cn/harmonyos/)
@@ -89,6 +89,6 @@ git clone https://github.com/fbotp/Aurum.git
 - [x] 后台播放
 - [x] 收藏夹缓存
 
----
+## 声明
 
-*名字里的金，是昕昀的日光。*
+Aurum 是一个独立开发者的个人应用，与哔哩哔哩官方无关。仅供学习交流，请勿用于商业用途。
