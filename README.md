@@ -85,7 +85,7 @@ git clone https://github.com/fbotp/Aurum.git
 
 ## 协议
 
-MIT License
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
