@@ -42,4 +42,4 @@ class Logger {
   }
 }
 
-export default new Logger('[Aurum]');
+export default new Logger('[AurumMusic]');

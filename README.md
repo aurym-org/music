@@ -1,4 +1,4 @@
-# Aurum
+# Aurum Music
 
 > *名字里的金，是昕昀的日光。*
 
@@ -8,9 +8,7 @@
 [![Bilibili](https://img.shields.io/badge/data-Bilibili%20API-00A1D6?logo=bilibili)](https://www.bilibili.com)
 [![status](https://img.shields.io/badge/status-beta-orange)]()
 
-Aurum 是一个轻量级的 B 站收藏夹音乐播放器，运行在 HarmonyOS 上。它只做一件事：把你收藏夹里的音乐内容筛选出来，放进一个干净的播放列表。
-
-名字取自拉丁语 "Aurum"（金）。收藏夹像矿砂，好的音乐是金粒。从信息洪流里把它们筛出来，存好，反复听。
+Aurum Music 是一个轻量级的 B 站收藏夹音乐播放器，运行在 HarmonyOS 上。它只做一件事：把你收藏夹里的音乐内容筛选出来，放进一个干净的播放列表。
 
 ## 功能
 
@@ -22,7 +20,7 @@ Aurum 是一个轻量级的 B 站收藏夹音乐播放器，运行在 HarmonyOS 
 
 ## 为什么做这个
 
-B 站收藏夹里塞满了各种内容，但那些音乐视频值得一个更好的播放器。Aurum 帮你把它们单独拎出来，还给听歌这件事一个不被打扰的空间。
+B 站收藏夹里塞满了各种内容，但那些音乐视频值得一个更好的播放器。Aurum Music 帮你把它们单独拎出来，还给听歌这件事一个不被打扰的空间。
 
 ## 技术栈
 
@@ -34,7 +32,7 @@ B 站收藏夹里塞满了各种内容，但那些音乐视频值得一个更好
 
 ```bash
 # 克隆项目
-git clone https://github.com/fbotp/Aurum.git
+git clone https://github.com/fbotp/AurumMusic.git
 
 # 用 DevEco Studio 打开
 # 构建并运行
@@ -91,4 +89,4 @@ git clone https://github.com/fbotp/Aurum.git
 
 ## 声明
 
-Aurum 是一个独立开发者的个人应用，与哔哩哔哩官方无关。仅供学习交流，请勿用于商业用途。
+Aurum Music 是一个独立开发者的个人应用，与哔哩哔哩官方无关。仅供学习交流，请勿用于商业用途。
