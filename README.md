@@ -2,6 +2,12 @@
 
 > 从 B 站收藏夹里淘金。
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![HarmonyOS](https://img.shields.io/badge/HarmonyOS-Next-black)](https://developer.huawei.com/consumer/cn/harmonyos/)
+[![ArkTS](https://img.shields.io/badge/lang-ArkTS-blue)](https://developer.huawei.com/consumer/cn/arkts/)
+[![Bilibili](https://img.shields.io/badge/data-Bilibili%20API-00A1D6?logo=bilibili)](https://www.bilibili.com)
+[![status](https://img.shields.io/badge/status-beta-orange)]()
+
 Aurum 是一个轻量级的 B 站收藏夹音乐播放器，运行在 HarmonyOS 上。它只做一件事：把你收藏夹里的音乐内容筛选出来，放进一个干净的播放列表。
 
 名字取自拉丁语 "Aurum"（金）。收藏夹像矿砂，好的音乐是金粒。从信息洪流里把它们筛出来，存好，反复听。
@@ -82,10 +88,6 @@ git clone https://github.com/fbotp/Aurum.git
 
 - [x] 后台播放
 - [x] 收藏夹缓存
-
-## 协议
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
