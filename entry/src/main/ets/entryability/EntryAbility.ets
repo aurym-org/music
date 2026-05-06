@@ -59,7 +59,7 @@ export default class EntryAbility extends UIAbility {
         hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
         return;
       }
-      AppStorage.setOrCreate('windowStage', windowStage)
+      AppStorage.setOrCreate('windowStage', windowStage);
       windowStage.getMainWindow().then((data: window.Window) => {
         this.windowObj = data;
         AppStorage.setOrCreate<window.Window>('window', data);
@@ -67,26 +67,16 @@ export default class EntryAbility extends UIAbility {
         const uiContext = data.getUIContext();
         AppStorage.setOrCreate("uiContext", uiContext);
         let topArea = this.windowObj.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-        let bottomArea = this.windowObj.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR)
-        let topHeight: number;
-        let bottomHeight: number;
-        if (!topArea) {
-          topHeight = 0;
-        } else {
-          topHeight = uiContext.px2vp(topArea.topRect.height)
-        }
-        if (!bottomArea) {
-          bottomHeight = 0;
-        } else {
-          bottomHeight = uiContext.px2vp(bottomArea.bottomRect.height)
-        }
-        AppStorage.setOrCreate('topHeight', topHeight)
-        AppStorage.setOrCreate('bottomHeight', bottomHeight)
+        let bottomArea = this.windowObj.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
+        let topHeight = topArea ? uiContext.px2vp(topArea.topRect.height) : 0;
+        let bottomHeight = bottomArea ? uiContext.px2vp(bottomArea.bottomRect.height) : 0;
+        AppStorage.setOrCreate('topHeight', topHeight);
+        AppStorage.setOrCreate('bottomHeight', bottomHeight);
         this.updateBreakpoint(this.windowObj.getWindowProperties().windowRect.width);
         this.windowObj.on('windowSizeChange', (windowSize: window.Size) => {
           this.updateBreakpoint(windowSize.width);
-        })
-      })
+        });
+      });
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
     });
   }

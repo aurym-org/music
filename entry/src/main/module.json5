@@ -34,6 +34,7 @@
         "label": "$string:EntryAbility_label",
         "startWindowIcon": "$media:foreground",
         "startWindowBackground": "$color:start_window_background",
+        "startWindow": "$profile:start_window",
         "exported": true,
         "backgroundModes": [
           "audioPlayback"

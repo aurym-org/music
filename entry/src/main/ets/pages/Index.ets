@@ -13,31 +13,40 @@
  * limitations under the License.
  */
 
-import { BreakpointConstants } from '../common/constants/BreakpointConstants';
 import { BreakpointSystem } from '../common/utils/BreakpointSystem';
 import Logger from '../common/utils/Logger';
 import { MediaControlCenter } from '../common/utils/mediautils/MediaControlCenter';
 import { PlayerInfoComponent } from '../view/PlayerInfoComponent';
 
-const TAG = '[Index]';
+const TAG = 'Index';
 
 @Entry
 @Component
 struct Index {
   @State isShowPlay: boolean = false;
   private breakpointSystem: BreakpointSystem = new BreakpointSystem();
+  @State splashOpacity: number = 1.0;
+  @State showSplash: boolean = true;
 
   async aboutToAppear() {
     try {
       await MediaControlCenter.getInstance().init();
       this.breakpointSystem.register();
+      setTimeout(() => {
+        this.getUIContext().animateTo({ duration: 350, curve: Curve.EaseOut }, () => {
+          this.splashOpacity = 0;
+        });
+        setTimeout(() => {
+          this.showSplash = false;
+        }, 350);
+      }, 1000);
     } catch (error) {
       Logger.error(TAG, `getInstance failed: ${error}`)
     }
   }
 
   aboutToDisappear(): void {
-    Logger.info(TAG, 'AudioRenderScene')
+    Logger.info(TAG, 'AudioRenderScene');
     this.breakpointSystem.unregister();
     MediaControlCenter.getInstance().release();
   }
@@ -45,7 +54,12 @@ struct Index {
   build() {
     Stack() {
       PlayerInfoComponent({ isShowPlay: this.isShowPlay });
+      if (this.showSplash) {
+        Image($r('app.media.foreground'))
+          .objectFit(ImageFit.Contain)
+          .backgroundColor($r("app.color.start_window_background"))
+          .opacity(this.splashOpacity)
+      }
     }
-
   }
 }
