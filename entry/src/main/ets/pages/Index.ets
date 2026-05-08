@@ -27,7 +27,7 @@ struct Index {
   private breakpointSystem: BreakpointSystem = new BreakpointSystem();
   @State splashOpacity: number = 1.0;
   @State showSplash: boolean = true;
-  private splashDuration: number = 700;
+  private splashDuration: number = 1000;
   private animateDuration: number = 500;
 
   async aboutToAppear() {
@@ -49,13 +49,26 @@ struct Index {
     Stack() {
       PlayerInfoComponent({ isShowPlay: this.isShowPlay });
       if (this.showSplash) {
-        Stack() {
+        Column() {
           Image($r('app.media.foreground'))
             .objectFit(ImageFit.Contain)
             .width("256vp")
+          Row() {
+            Text('Aurum')
+              .fontSize(32)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#EAD5B2')
+            Text('Music')
+              .fontSize(32)
+              .fontWeight(FontWeight.Lighter)
+              .fontColor('#F3E6D8')
+              .margin({ left: 8 })
+          }
         }
         .width("100%")
         .height("100%")
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
         .backgroundColor($r("app.color.start_window_background"))
         .opacity(this.splashOpacity)
         .onAppear(() => {
