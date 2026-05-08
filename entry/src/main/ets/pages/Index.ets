@@ -27,19 +27,13 @@ struct Index {
   private breakpointSystem: BreakpointSystem = new BreakpointSystem();
   @State splashOpacity: number = 1.0;
   @State showSplash: boolean = true;
+  private splashDuration: number = 700;
+  private animateDuration: number = 500;
 
   async aboutToAppear() {
     try {
-      await MediaControlCenter.getInstance().init();
+      MediaControlCenter.getInstance().init();
       this.breakpointSystem.register();
-      setTimeout(() => {
-        this.getUIContext().animateTo({ duration: 350, curve: Curve.EaseOut }, () => {
-          this.splashOpacity = 0;
-        });
-        setTimeout(() => {
-          this.showSplash = false;
-        }, 350);
-      }, 1000);
     } catch (error) {
       Logger.error(TAG, `getInstance failed: ${error}`)
     }
@@ -55,10 +49,25 @@ struct Index {
     Stack() {
       PlayerInfoComponent({ isShowPlay: this.isShowPlay });
       if (this.showSplash) {
-        Image($r('app.media.foreground'))
-          .objectFit(ImageFit.Contain)
-          .backgroundColor($r("app.color.start_window_background"))
-          .opacity(this.splashOpacity)
+        Stack() {
+          Image($r('app.media.foreground'))
+            .objectFit(ImageFit.Contain)
+            .width("256vp")
+        }
+        .width("100%")
+        .height("100%")
+        .backgroundColor($r("app.color.start_window_background"))
+        .opacity(this.splashOpacity)
+        .onAppear(() => {
+          setTimeout(() => {
+            this.getUIContext().animateTo({ duration: this.animateDuration, curve: Curve.EaseOut }, () => {
+              this.splashOpacity = 0;
+            });
+            setTimeout(() => {
+              this.showSplash = false;
+            }, this.animateDuration);
+          }, this.splashDuration);
+        });
       }
     }
   }
