@@ -29,6 +29,7 @@ struct Index {
   @State showSplash: boolean = true;
   private splashDuration: number = 1000;
   private animateDuration: number = 500;
+  private splashTimer?: number;
 
   async aboutToAppear() {
     try {
@@ -40,7 +41,7 @@ struct Index {
   }
 
   aboutToDisappear(): void {
-    Logger.info(TAG, 'AudioRenderScene');
+    clearTimeout(this.splashTimer);
     this.breakpointSystem.unregister();
     MediaControlCenter.getInstance().release();
   }
@@ -72,13 +73,16 @@ struct Index {
         .backgroundColor($r("app.color.start_window_background"))
         .opacity(this.splashOpacity)
         .onAppear(() => {
-          setTimeout(() => {
-            this.getUIContext().animateTo({ duration: this.animateDuration, curve: Curve.EaseOut }, () => {
+          this.splashTimer = setTimeout(() => {
+            this.getUIContext().animateTo({
+              duration: this.animateDuration,
+              curve: Curve.EaseOut,
+              onFinish: () => {
+                this.showSplash = false;
+              }
+            }, () => {
               this.splashOpacity = 0;
             });
-            setTimeout(() => {
-              this.showSplash = false;
-            }, this.animateDuration);
           }, this.splashDuration);
         });
       }
