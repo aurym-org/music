@@ -27,9 +27,18 @@ struct Index {
   private breakpointSystem: BreakpointSystem = new BreakpointSystem();
   @State splashOpacity: number = 1.0;
   @State showSplash: boolean = true;
-  private splashDuration: number = 1000;
-  private animateDuration: number = 500;
+  private splashDuration: number = 1700;
+  private splashFadeOutDuration: number = 500;
   private splashTimer?: number;
+  @State titleOpacity: number = 0;
+  @State subtitleOpacity: number = 0;
+  @State titleTranslateY: number = 8;
+  @State subtitleTranslateY: number = 8;
+  private textFadeInDuration: number = 350;
+  private titleDelay: number = 150;
+  private titleTimer?: number;
+  private subtitleDelay: number = 500;
+  private subtitleTimer?: number;
 
   async aboutToAppear() {
     try {
@@ -42,6 +51,8 @@ struct Index {
 
   aboutToDisappear(): void {
     clearTimeout(this.splashTimer);
+    clearTimeout(this.titleTimer);
+    clearTimeout(this.subtitleTimer);
     this.breakpointSystem.unregister();
     MediaControlCenter.getInstance().release();
   }
@@ -53,18 +64,23 @@ struct Index {
         Column() {
           Image($r('app.media.foreground'))
             .objectFit(ImageFit.Contain)
-            .width("256vp")
-          Row() {
-            Text('Aurum')
-              .fontSize(32)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#EAD5B2')
-            Text('Music')
-              .fontSize(32)
-              .fontWeight(FontWeight.Lighter)
-              .fontColor('#F3E6D8')
-              .margin({ left: 8 })
-          }
+            .width("42%")
+            .margin({ bottom: 24 })
+          Text('Aurum')
+            .fontSize(26)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#E8D5C4')
+            .opacity(this.titleOpacity)
+            .letterSpacing(6)
+            .translate({ y: this.titleTranslateY })
+          Text('Hi-Res Sound')
+            .fontSize(12)
+            .fontWeight(FontWeight.Lighter)
+            .fontColor('#E8D5C4')
+            .opacity(this.subtitleOpacity)
+            .letterSpacing(4)
+            .translate({ y: this.subtitleTranslateY })
+            .margin({ top: 8 })
         }
         .width("100%")
         .height("100%")
@@ -73,9 +89,27 @@ struct Index {
         .backgroundColor($r("app.color.start_window_background"))
         .opacity(this.splashOpacity)
         .onAppear(() => {
+          this.titleTimer = setTimeout(() => {
+            this.getUIContext().animateTo({
+              duration: this.textFadeInDuration,
+              curve: Curve.EaseOut
+            }, () => {
+              this.titleOpacity = 0.85;
+              this.titleTranslateY = 0;
+            });
+          }, this.titleDelay);
+          this.subtitleTimer = setTimeout(() => {
+            this.getUIContext().animateTo({
+              duration: this.textFadeInDuration,
+              curve: Curve.EaseOut
+            }, () => {
+              this.subtitleOpacity = 0.65;
+              this.subtitleTranslateY = 0;
+            });
+          }, this.subtitleDelay);
           this.splashTimer = setTimeout(() => {
             this.getUIContext().animateTo({
-              duration: this.animateDuration,
+              duration: this.splashFadeOutDuration,
               curve: Curve.EaseOut,
               onFinish: () => {
                 this.showSplash = false;
