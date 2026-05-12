@@ -4,7 +4,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { audio } from '@kit.AudioKit';
 import { MediaTools } from './MediaTools';
 import { AVSessionController } from './AVSessionController';
-import { MediaControlCenterCallbackAction } from './MediaControlCenterCallbackAction';
+import { MediaControlCenter } from './MediaControlCenter';
 
 const TAG = 'AVPlayerController'
 
@@ -277,7 +277,7 @@ export class AVPlayerController {
       return;
     }
     this.avPlayer.on('timeUpdate', (time: number) => {
-      MediaControlCenterCallbackAction.getInstance().doUpdateProgressAction(time);
+      MediaControlCenter.getInstance().updateProgress(time);
     });
   }
 
@@ -353,7 +353,7 @@ export class AVPlayerController {
           Logger.info(TAG, `state paused called , resson is ${reason}`);
           break;
         case 'completed':
-          MediaControlCenterCallbackAction.getInstance().doPlayNextAction();
+          MediaControlCenter.getInstance().playNext();
           break;
         case 'stopped':
           Logger.info(TAG, `state stopped called , resson is ${reason}`);
@@ -386,10 +386,10 @@ export class AVPlayerController {
       if (interruptEvent.forceType === audio.InterruptForceType.INTERRUPT_FORCE) {
         switch (interruptEvent.hintType) {
           case audio.InterruptHint.INTERRUPT_HINT_PAUSE:
-            MediaControlCenterCallbackAction.getInstance().doPauseAction();
+            MediaControlCenter.getInstance().pause();
             break;
           case audio.InterruptHint.INTERRUPT_HINT_STOP:
-            MediaControlCenterCallbackAction.getInstance().doPauseAction();
+            MediaControlCenter.getInstance().pause();
             break;
           case audio.InterruptHint.INTERRUPT_HINT_DUCK:
             break;
@@ -401,7 +401,7 @@ export class AVPlayerController {
       } else if (interruptEvent.forceType === audio.InterruptForceType.INTERRUPT_SHARE) {
         switch (interruptEvent.hintType) {
           case audio.InterruptHint.INTERRUPT_HINT_RESUME:
-            MediaControlCenterCallbackAction.getInstance().doPlayAction();
+            MediaControlCenter.getInstance().play();
             break;
           default:
             break;
@@ -431,7 +431,7 @@ export class AVPlayerController {
       Logger.info(TAG, `Device change reason: ${deviceChangeInfo.changeReason}`);
       if (deviceChangeInfo.changeReason === audio.AudioStreamDeviceChangeReason.REASON_OLD_DEVICE_UNAVAILABLE) {
         Logger.info(TAG, `Device change reason: ${deviceChangeInfo.changeReason}`);
-        MediaControlCenterCallbackAction.getInstance().doPauseAction();
+        MediaControlCenter.getInstance().pause();
       }
     })
   }

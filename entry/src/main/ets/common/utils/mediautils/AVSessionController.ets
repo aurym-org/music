@@ -223,13 +223,13 @@ export class AVSessionController {
     }
     switch (loopMode) {
       case avSession.LoopMode.LOOP_MODE_SINGLE:
-        this.mediaControlCenter.setPlayModel(MusicPlayMode.ORDER);
+        this.mediaControlCenter.setPlayMode(MusicPlayMode.ORDER);
         break;
       case avSession.LoopMode.LOOP_MODE_SEQUENCE:
-        this.mediaControlCenter.setPlayModel(MusicPlayMode.RANDOM);
+        this.mediaControlCenter.setPlayMode(MusicPlayMode.RANDOM);
         break;
       case avSession.LoopMode.LOOP_MODE_SHUFFLE:
-        this.mediaControlCenter.setPlayModel(MusicPlayMode.SINGLE_CYCLE);
+        this.mediaControlCenter.setPlayMode(MusicPlayMode.SINGLE_CYCLE);
         break;
       default:
         break;

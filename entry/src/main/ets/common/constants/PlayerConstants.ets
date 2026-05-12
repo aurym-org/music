@@ -126,6 +126,8 @@ export const SILENT_ID = 'silentId';
 
 export const VOLUME_ID = 'volumeId';
 
+export const PLAY_MODE_ID = 'playModeId'
+
 export const DEFAULT_VOLUME = 100;
 
 export class Options {

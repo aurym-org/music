@@ -15,7 +15,7 @@
 import { PromptAction } from '@kit.ArkUI';
 import { BreakpointConstants } from '../common/constants/BreakpointConstants';
 import { ContentConstants } from '../common/constants/ContentConstants';
-import { MusicPlayMode, PlayerConstants, PlayModeSwitchList, VOLUME_ID } from '../common/constants/PlayerConstants';
+import { MusicPlayMode, PlayerConstants, PlayModeSwitchList, VOLUME_ID, PLAY_MODE_ID } from '../common/constants/PlayerConstants';
 import { StyleConstants } from '../common/constants/StyleConstants';
 import { BreakpointType } from '../common/utils/BreakpointSystem';
 import Logger from '../common/utils/Logger';
@@ -35,11 +35,13 @@ export struct ControlAreaComponent {
   @StorageLink('totalTime') totalTime: string = '00:00';
   @StorageLink('progress') value: number = 0;
   @StorageLink('progressMax') max: number = 0;
-  @State playModeIndex: number = PlayModeSwitchList.indexOf(PreferencesUtil.getInstance().getValue('playMode') as MusicPlayMode) ?? 0;
-  @StorageLink('pageShowTime') pageShowTime: number = 0;
+  @State playModeIndex: number = (() => {
+    const idx = PlayModeSwitchList.indexOf(PreferencesUtil.getInstance().getValue(PLAY_MODE_ID) as MusicPlayMode);
+    return idx === -1 ? 0 : idx;
+  })();  @StorageLink('pageShowTime') pageShowTime: number = 0;
   @StorageLink('songList') songList: SongItem[] = [];
   @State isShowPlayList: boolean = false;
-  @StorageLink('playMode') playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue('playMode') as MusicPlayMode ?? PlayModeSwitchList[this.playModeIndex];
+  @StorageLink('playMode') playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue(PLAY_MODE_ID) as MusicPlayMode ?? PlayModeSwitchList[this.playModeIndex];
   @StorageLink('selectIndex') selectIndex: number = 0;
   @StorageLink('isSilentMode') @Watch('isSilentModeChange') isSilentMode: boolean = false;
   @StorageLink('isLoading') isLoading: boolean = true;
@@ -77,7 +79,7 @@ export struct ControlAreaComponent {
           this.resourceConversion.getStringValueFromResource($r('app.string.random_playback')) :
           this.resourceConversion.getStringValueFromResource($r('app.string.single_playback'))}`
     });
-    MediaControlCenter.getInstance().setPlayModel(this.playMode);
+    MediaControlCenter.getInstance().setPlayMode(this.playMode);
   }
 
   build() {

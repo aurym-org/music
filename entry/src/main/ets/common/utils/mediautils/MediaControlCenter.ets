@@ -16,12 +16,12 @@
 import { getFavoriteDetail } from '../../../model/SongListData';
 import { SongItem } from '../../../viewmodel/SongData';
 import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
-import { DEFAULT_VOLUME, MusicPlayMode, SILENT_ID, VOLUME_ID } from '../../constants/PlayerConstants';
+import { DEFAULT_VOLUME, MusicPlayMode, SILENT_ID, VOLUME_ID, PLAY_MODE_ID } from '../../constants/PlayerConstants';
 import { ContentConstants } from '../../constants/ContentConstants';
 import Logger from '../Logger';
 import { AVSessionController } from './AVSessionController';
 import { MediaTools } from './MediaTools';
-import { MediaControlCenterHandle } from './MediaControlCenterHandle';
+import { AVPlayerController } from './AVPlayerController';
 import { BackgroundUtil } from '../BackgroundUtil';
 import { common } from '@kit.AbilityKit';
 import { PreferencesUtil } from '../PreferencesUtil';
@@ -32,10 +32,10 @@ const TAG = 'MediaControlCenter';
 
 export class MediaControlCenter {
   private avSessionController: AVSessionController | undefined = undefined;
-  private mediaControlCenterHandle: MediaControlCenterHandle | undefined = undefined;
+  private avPlayerController: AVPlayerController | undefined = undefined;
   private context: common.UIAbilityContext | undefined = AppStorage.get('context');
   private songItemBuilder: SongItemBuilder = new SongItemBuilder();
-  private playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue('playMode') as MusicPlayMode ?? MusicPlayMode.ORDER;
+  private playMode: MusicPlayMode | undefined = undefined;
   private songList: SongItem[] = [];
   private musicIndex: number = 0;
   private audioSessionManager: audio.AudioSessionManager | undefined = undefined;
@@ -60,12 +60,12 @@ export class MediaControlCenter {
     const currentVersion = this.switchVersion;
     if (this.switchVersion !== currentVersion) return;
     await this.songItemBuilder.build(this.songList[this.musicIndex]);
-    if (!this.mediaControlCenterHandle) {
-      Logger.error(TAG, 'mediaControlCenterHandle is undefined');
+    if (!this.avPlayerController) {
+      Logger.error(TAG, 'avPlayerController is undefined');
       return;
     }
     if (this.switchVersion !== currentVersion) return;
-    await this.mediaControlCenterHandle.loadSongAssent(this.songList[this.musicIndex].src);
+    await this.avPlayerController.loadSongAssent(this.songList[this.musicIndex].src);
     this.setLoading(false);
   }
   // [End loadSongAssent]
@@ -82,9 +82,9 @@ export class MediaControlCenter {
     await this.avSessionController.initAVSession();
   }
 
-  private async initHandle() {
-    this.mediaControlCenterHandle = MediaControlCenterHandle.getInstance();
-    await this.mediaControlCenterHandle.init();
+  private async initAvplayer() {
+    this.avPlayerController = AVPlayerController.getInstance();
+    await this.avPlayerController.initAVPlayer();
   }
 
   private async initAudioManager() {
@@ -111,20 +111,20 @@ export class MediaControlCenter {
     AppStorage.setOrCreate('switchVersion', this.switchVersion);
     await getFavoriteDetail(ContentConstants.FAV_ID);
     this.songList = AppStorage.get('songList')!;
-    await this.initHandle();
+    await this.initAvplayer();
     await this.loadSongAssent();
     await this.initAVSession();
     await this.initAudioManager();
     this.setSilentModeFromPrefer();
     this.setVolumeFromPrefer();
-    this.setPlayModel(this.playMode);
+    this.setPlayModeFromPrefer();
     this.setLoading(false);
     this.isInitted = true;
   }
 
   public release() {
-    if (!this.mediaControlCenterHandle) {
-      Logger.error(TAG, 'mediaControlCenterHandle is undefined');
+    if (!this.avPlayerController) {
+      Logger.error(TAG, 'avPlayerController is undefined');
       return;
     }
     if (!this.avSessionController) {
@@ -132,14 +132,18 @@ export class MediaControlCenter {
       return;
     }
     this.avSessionController.unregisterSessionListener();
-    this.mediaControlCenterHandle.release();
+    try {
+      this.avPlayerController.release();
+    } catch (err) {
+      Logger.error(TAG, `release failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
+    }
   }
 
   // [Start StartContinuousTask]
   public async play(index: number = this.musicIndex) {
     Logger.info(TAG, `index is ${index},musicIndex is ${this.musicIndex}`)
-    if (!this.mediaControlCenterHandle) {
-      Logger.error(TAG, 'mediaControlCenterHandle is undefined');
+    if (!this.avPlayerController) {
+      Logger.error(TAG, 'avPlayerController is undefined');
       return;
     }
     if (!this.avSessionController) {
@@ -168,16 +172,24 @@ export class MediaControlCenter {
       return;
     }
     this.updateIsPlay(true);
-    this.mediaControlCenterHandle.play();
+    try {
+      this.avPlayerController.play();
+    } catch (err) {
+      Logger.error(TAG, `play failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
+    }
     BackgroundUtil.startContinuousTask(this.context);
   }
 
   public pause() {
-    if (!this.mediaControlCenterHandle) {
-      Logger.error(TAG, 'mediaControlCenterHandle is undefined');
+    if (!this.avPlayerController) {
+      Logger.error(TAG, 'avPlayerController is undefined');
       return;
     }
-    this.mediaControlCenterHandle.pause();
+    try {
+      this.avPlayerController.pause();
+    } catch (err) {
+      Logger.error(TAG, `pause failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
+    }
     this.updateIsPlay(false);
     BackgroundUtil.stopContinuousTask(this.context!);
   }
@@ -290,29 +302,34 @@ export class MediaControlCenter {
     if (!this.context) {
       return;
     }
-    if (!this.mediaControlCenterHandle) {
+    if (!this.avPlayerController) {
       return;
     }
     AppStorage.setOrCreate('currentTime', '00:00');
     AppStorage.setOrCreate('progress', 0);
-    await this.mediaControlCenterHandle.stop();
+    try {
+      await this.avPlayerController.stop();
+    } catch (err) {
+      Logger.error(TAG, `stop failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
+    }
+    this.updateIsPlay(false);
     Logger.info(TAG, 'stop success')
     BackgroundUtil.stopContinuousTask(this.context);
   }
 
-  // Set play model
-  public setPlayModel(playMode: MusicPlayMode) {
+  // Set play mode
+  public setPlayMode(playMode: MusicPlayMode | undefined) {
     if (!this.avSessionController) {
       return;
     }
-    this.playMode = playMode;
-    PreferencesUtil.getInstance().preferencesPut('playMode', this.playMode);
-    this.avSessionController.setPlayModeToAVSession(playMode);
-    this.setPlayModeToControlArea(playMode);
+    this.playMode = playMode ?? MusicPlayMode.ORDER;
+    this.avSessionController.setPlayModeToAVSession(this.playMode);
+    this.setPlayModeToControlArea(this.playMode);
   }
 
   private setPlayModeToControlArea(playMode: MusicPlayMode) {
     AppStorage.setOrCreate('playMode', playMode);
+    PreferencesUtil.getInstance().preferencesPut(PLAY_MODE_ID, playMode);
   }
 
   public updateIsPlay(isPlay: boolean) {
@@ -326,26 +343,46 @@ export class MediaControlCenter {
   }
 
   public getVolume(): number {
-    if (!this.mediaControlCenterHandle) {
+    if (!this.avPlayerController) {
       return 0;
     }
-    return this.mediaControlCenterHandle.getVolume();
+    let volume: number | undefined;
+    volume = PreferencesUtil.getInstance().getValue(VOLUME_ID) as number;
+    if (volume === undefined) {
+      return DEFAULT_VOLUME;
+    } else {
+      return volume
+    }
   }
 
   public setVolume(volume: number) {
-    if (!this.mediaControlCenterHandle) {
-      Logger.error(TAG, 'mediaControlCenterHandle is undefined');
+    if (!this.avPlayerController) {
+      Logger.error(TAG, 'avPlayerController is undefined');
       return;
     }
-    this.mediaControlCenterHandle.setVolume(volume);
+    try {
+      this.avPlayerController.setVolume(volume);
+      if (!AppStorage.get('isSilentMode') || volume !== 0) {
+        PreferencesUtil.getInstance().preferencesPut(VOLUME_ID, volume);
+      }
+    } catch (err) {
+      Logger.error(TAG,
+        `set volume failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
+    }
+    Logger.info(TAG, `setVolume is ${volume}`)
   }
 
   public setSpeed(speed: number) {
-    if (!this.mediaControlCenterHandle) {
-      Logger.error(TAG, 'mediaControlCenterHandle is undefined');
+    if (!this.avPlayerController) {
+      Logger.error(TAG, 'avPlayerController is undefined');
       return;
     }
-    this.mediaControlCenterHandle.setSpeed(speed)
+    try {
+      this.avPlayerController.setSpeed(speed);
+    } catch (err) {
+      Logger.error(TAG,
+        `set speed failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
+    }
   }
 
   // Set silent mode
@@ -353,8 +390,8 @@ export class MediaControlCenter {
     if (!this.context) {
       return;
     }
-    if (!this.mediaControlCenterHandle) {
-      Logger.info(TAG, 'mediaControlCenterHandle is undefined in setSilentModeAndMixWithOthers')
+    if (!this.avPlayerController) {
+      Logger.info(TAG, 'avPlayerController is undefined in setSilentModeAndMixWithOthers')
       return;
     }
     PreferencesUtil.getInstance().preferencesPut(SILENT_ID, isSilentMode);
@@ -363,7 +400,13 @@ export class MediaControlCenter {
     } else {
       this.activateAudioSession();
     }
-    this.mediaControlCenterHandle.setSilentMode(isSilentMode);
+    try {
+      this.avPlayerController.setSilentMode(isSilentMode);
+      PreferencesUtil.getInstance().preferencesPut(SILENT_ID, isSilentMode);
+    } catch (err) {
+      Logger.error(TAG,
+        `set silentMode failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
+    }
   }
 
   private async setSilentModeFromPrefer() {
@@ -391,12 +434,27 @@ export class MediaControlCenter {
     AppStorage.setOrCreate('currentVolume', volume);
   }
 
-  public seek(ms: number) {
-    if (!this.mediaControlCenterHandle) {
-      Logger.error(TAG, 'mediaControlCenterHandle is undefined');
+  private async setPlayModeFromPrefer() {
+    if (!this.context) {
       return;
     }
-    this.mediaControlCenterHandle.seek(ms);
+    let playMode: MusicPlayMode | undefined = PreferencesUtil.getInstance().getValue(PLAY_MODE_ID) as MusicPlayMode | undefined;
+    if (playMode === undefined) {
+      playMode = MusicPlayMode.ORDER;
+    }
+    this.setPlayMode(playMode);
+  }
+
+  public seek(ms: number) {
+    if (!this.avPlayerController) {
+      Logger.error(TAG, 'avPlayerController is undefined');
+      return;
+    }
+    try {
+      this.avPlayerController.seek(ms);
+    } catch (err) {
+      Logger.error(TAG, `seek failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
+    }
     this.updateProgress(ms);
   }
 
