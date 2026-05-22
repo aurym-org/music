@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2026 Aurym
+ * Released under the MIT License.
+ * https://opensource.org/licenses/MIT
+ */
+
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BackupExtensionAbility, BundleVersion } from '@kit.CoreFileKit';
 

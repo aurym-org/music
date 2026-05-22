@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2026 Aurym
+ * Released under the MIT License.
+ * https://opensource.org/licenses/MIT
+ */
+
 import Logger from '../Logger';
 import { media } from '@kit.MediaKit';
 import { BusinessError } from '@kit.BasicServicesKit';

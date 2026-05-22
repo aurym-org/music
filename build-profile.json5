@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_avplayer-play-formatted-audio-arkts-master_vA9ZCLHJ3KZPnYu2M63ttFqEGOX4ZIxW2Q9T9Srqhyc=.cer",
+          "certpath": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_AurymMusic_unz65e86cr0652JN69T3IbhSPOF3ek4p5rK8SHDmDS8=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001BB265C9C2592D9CEF74608DBC84A626E978BE10C37CFEECD22692AB0370282A26E0A867264C955B",
-          "profile": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_avplayer-play-formatted-audio-arkts-master_vA9ZCLHJ3KZPnYu2M63ttFqEGOX4ZIxW2Q9T9Srqhyc=.p7b",
+          "keyPassword": "0000001B26EE6E5A834540E952AC4BE9525B2A14C5441AB1DD040DB70EE2CBEAB7AB70F13C8C38A260E13F",
+          "profile": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_AurymMusic_unz65e86cr0652JN69T3IbhSPOF3ek4p5rK8SHDmDS8=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_avplayer-play-formatted-audio-arkts-master_vA9ZCLHJ3KZPnYu2M63ttFqEGOX4ZIxW2Q9T9Srqhyc=.p12",
-          "storePassword": "0000001B50B79F751173954230CC9AB019B86FC9BD37C832E7D724B42074311EE134E493AD68CD62825333"
+          "storeFile": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_AurymMusic_unz65e86cr0652JN69T3IbhSPOF3ek4p5rK8SHDmDS8=.p12",
+          "storePassword": "0000001B3BCED9B2EF7A48E4EC8E09C54CD35C4D8C0573F733277F752B895070142B24A5CFD3AE9F2A3B4E"
         }
       }
     ],

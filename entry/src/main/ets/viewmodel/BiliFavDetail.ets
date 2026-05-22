@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2026 Aurym
+ * Released under the MIT License.
+ * https://opensource.org/licenses/MIT
+ */
+
 export interface BiliFavDetail {
   code: number,
   message: string,

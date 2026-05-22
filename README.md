@@ -1,4 +1,4 @@
-# Aurum Music
+# Aurym Music
 
 > *名字里的金，是昕昀的日光。*
 
@@ -6,21 +6,23 @@
 [![HarmonyOS](https://img.shields.io/badge/HarmonyOS-Next-black)](https://developer.huawei.com/consumer/cn/harmonyos/)
 [![ArkTS](https://img.shields.io/badge/lang-ArkTS-blue)](https://developer.huawei.com/consumer/cn/arkts/)
 [![Bilibili](https://img.shields.io/badge/data-Bilibili%20API-00A1D6?logo=bilibili)](https://www.bilibili.com)
-[![status](https://img.shields.io/badge/status-beta-orange)]()
+[![status](https://img.shields.io/badge/status-stable-brightgreen)]()
 
-Aurum Music 是一个轻量级的 B 站收藏夹音乐播放器，运行在 HarmonyOS 上。它只做一件事：把你收藏夹里的音乐内容筛选出来，放进一个干净的播放列表。
+Aurym Music 是一个轻量级的 B 站收藏夹音乐播放器，运行在 HarmonyOS 上。它只做一件事：把你收藏夹里的音乐内容筛选出来，放进一个干净的播放列表。没有社交，没有推荐算法，没有直播——只有音乐。
 
 ## 功能
 
-- 获取指定 UP 主的收藏夹列表
-- 响应蓝牙设备播放指令
-- 播控中心控制及冷启动
-- 干净的播放列表，极简播放
-- 记忆上次播放模式
+- [x] 获取指定 UP 主的收藏夹列表
+- [x] 干净的播放列表，极简播放
+- [x] 后台播放
+- [x] 响应蓝牙设备播放指令
+- [x] 播控中心控制及冷启动
+- [x] 记忆上次播放模式
+- [x] 收藏夹缓存
 
 ## 为什么做这个
 
-B 站收藏夹里塞满了各种内容，但那些音乐视频值得一个更好的播放器。Aurum Music 帮你把它们单独拎出来，还给听歌这件事一个不被打扰的空间。
+B 站收藏夹里塞满了各种内容，但那些音乐视频值得一个更好的播放器。Aurym Music 帮你把它们单独拎出来，还给听歌这件事一个不被打扰的空间。这是 Aurym 的第一个 App，也是一个关于"光"的实验——我们希望技术是温暖的，像日光一样。
 
 ## 技术栈
 
@@ -32,7 +34,7 @@ B 站收藏夹里塞满了各种内容，但那些音乐视频值得一个更好
 
 ```bash
 # 克隆项目
-git clone https://github.com/fbotp/AurumMusic.git
+git clone https://github.com/fbotp/AurymMusic.git
 
 # 用 DevEco Studio 打开
 # 构建并运行
@@ -46,7 +48,7 @@ git clone https://github.com/fbotp/AurumMusic.git
 │  │  │  ├──BreakpointConstants.ets                       // 断点常量
 │  │  │  ├──ContentConstants.ets                          // 内容常量
 │  │  │  ├──PlayerConstants.ets                           // 播放常量
-│  │  │  └──StyleConstants.ets                            // 顶部区域组件
+│  │  │  └──StyleConstants.ets                            // 样式常量
 │  │  └──utils                                            // 工具函数
 │  │     ├──mediautils                                    // 媒体方法
 │  │     │  ├──AVPlayerController.ets                     // AVPlayerController播放类
@@ -82,11 +84,6 @@ git clone https://github.com/fbotp/AurumMusic.git
 └──entry/src/main/resources                               // 应用静态资源目录
 ```
 
-## 路线图
-
-- [x] 后台播放
-- [x] 收藏夹缓存
-
 ## 声明
 
-Aurum Music 是一个独立开发者的个人应用，与哔哩哔哩官方无关。仅供学习交流，请勿用于商业用途。
+Aurym Music 是一个独立开发者的个人应用，与哔哩哔哩官方无关。本应用使用的 Bilibili API 仅为学习研究目的，请勿将其用于商业用途。
