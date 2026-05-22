@@ -54,13 +54,11 @@ git clone https://github.com/fbotp/AurymMusic.git
 │  │     │  ├──AVPlayerController.ets                     // AVPlayerController播放类
 │  │     │  ├──AVSessionController.ets                    // 播控中心控制类
 │  │     │  ├──MediaControlCenter.ets                     // 媒体控制中心类
-│  │     │  ├──MediaControlCenterCallbackAction.ets       // 媒体控制中心回调函数响应类
-│  │     │  ├──MediaControlCenterHandle.ets               // 媒体控制中心句柄类
 │  │     │  └──MediaTools.ets                             // 媒体工具处理类
-│  │     ├──BackgroundUtil                                // 后台任务类
-│  │     ├──BreakpointSystem                              // 断点系统类
-│  │     ├──Logger                                        // 日志类
-│  │     ├──PreferencesUtil                               // 首选项工具类
+│  │     ├──BackgroundUtil.ets                            // 后台任务类
+│  │     ├──BreakpointSystem.ets                          // 断点系统类
+│  │     ├──Logger.ets                                    // 日志类
+│  │     ├──PreferencesUtil.ets                           // 首选项工具类
 │  │     └──ResourceConversion.ets                        // 资源工具类
 │  ├──entryability
 │  │  ├──EntryAbility.ets                                 // Ability的生命周期回调内容
