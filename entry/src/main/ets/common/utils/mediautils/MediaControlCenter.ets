@@ -18,6 +18,7 @@ import { common } from '@kit.AbilityKit';
 import { PreferencesUtil } from '../PreferencesUtil';
 import { audio } from '@kit.AudioKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
+import { wbiSigner } from '../BiliWbiUtil';
 
 const TAG = 'MediaControlCenter';
 
@@ -99,6 +100,7 @@ export class MediaControlCenter {
     if (this.isInitted) {
       return;
     }
+    await wbiSigner.fetchAndCacheWbiKeys();
     AppStorage.setOrCreate('switchVersion', this.switchVersion);
     await getFavoriteDetail(ContentConstants.FAV_ID);
     this.songList = AppStorage.get('songList')!;

@@ -9,6 +9,7 @@ import { http } from '@kit.NetworkKit';
 import Logger from "../common/utils/Logger";
 import { BiliFavDetail, BiliFavDetailItemModel } from "../viewmodel/BiliFavDetail";
 import { ContentConstants } from "../common/constants/ContentConstants";
+import { wbiSigner } from "../common/utils/BiliWbiUtil";
 
 const TAG = 'SongListData';
 
@@ -40,7 +41,22 @@ function convertToSongItem(item: BiliFavDetailItemModel, index: number): SongIte
 
   while (hasMore) {
     try {
-      const url = `https://api.bilibili.com/x/v3/fav/resource/list?media_id=${mediaId}&pn=${currentPage}&ps=${pageSize}&keyword=&order=mtime&type=0&tid=0&platform=web&web_location=0.0`;
+      const params = new Map<string, string | number>();
+      params.set('media_id', mediaId);
+      params.set('pn', currentPage);
+      params.set('ps', pageSize);
+      params.set('keyword', '');
+      params.set('order', 'mtime');
+      params.set('type', 0);
+      params.set('tid', 0);
+      params.set('platform', 'web');
+      params.set('web_location', '0.0');
+      const signedParams = await wbiSigner.getSignedParams(params);
+      const queryParts: string[] = [];
+      signedParams.forEach((value, key) => {
+        queryParts.push(`${key}=${encodeURIComponent(value.toString())}`);
+      });
+      const url = `https://api.bilibili.com/x/v3/fav/resource/list?${queryParts.join('&')}`;
       const httpRequest = http.createHttp();
       const response = await httpRequest.request(url, {
         method: http.RequestMethod.GET,

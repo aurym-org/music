@@ -11,6 +11,7 @@ import Logger from '../common/utils/Logger';
 import { http } from '@kit.NetworkKit';
 import { PreferencesUtil } from '../common/utils/PreferencesUtil';
 import { BiliPlayUrl } from './BiliPlayUrl';
+import { wbiSigner } from '../common/utils/BiliWbiUtil';
 
 const TAG = 'SongItemBuilder'
 
@@ -52,7 +53,17 @@ export default class SongItemBuilder {
 
   async getBiliPlayUrl(bvid: string, cid: number): Promise<BiliPlayUrl> {
     this.cleanHttpRequest();
-    const url = `https://api.bilibili.com/x/player/playurl?cid=${cid}&bvid=${bvid}&fnval=16&qn=16`;
+    const params = new Map<string, string | number>();
+    params.set('bvid', bvid);
+    params.set('cid', cid);
+    params.set('fnval', 16);
+    params.set('qn', 16);
+    const signed = await wbiSigner.getSignedParams(params);
+    const queryParts: string[] = [];
+    signed.forEach((value, key) => {
+      queryParts.push(`${key}=${encodeURIComponent(value.toString())}`);
+    });
+    const url = `https://api.bilibili.com/x/player/wbi/playurl?${queryParts.join('&')}`;
     const httpRequest = http.createHttp();
     this.currentRequest = httpRequest;
     const response = await httpRequest.request(url, {

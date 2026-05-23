@@ -18,17 +18,17 @@ struct Index {
   private breakpointSystem: BreakpointSystem = new BreakpointSystem();
   @State splashOpacity: number = 1.0;
   @State showSplash: boolean = true;
-  private splashDuration: number = 1700;
-  private splashFadeOutDuration: number = 500;
+  private splashDuration: number = 1200;
+  private splashFadeOutDuration: number = 600;
   private splashTimer?: number;
   @State titleOpacity: number = 0;
   @State subtitleOpacity: number = 0;
   @State titleTranslateY: number = 8;
   @State subtitleTranslateY: number = 8;
-  private textFadeInDuration: number = 350;
+  private textFadeInDuration: number = 400;
   private titleDelay: number = 150;
   private titleTimer?: number;
-  private subtitleDelay: number = 500;
+  private subtitleDelay: number = 400;
   private subtitleTimer?: number;
 
   async aboutToAppear() {
@@ -64,7 +64,7 @@ struct Index {
             .opacity(this.titleOpacity)
             .letterSpacing(6)
             .translate({ y: this.titleTranslateY })
-          Text('Hi-Res Sound')
+          Text('Music')
             .fontSize(12)
             .fontWeight(FontWeight.Lighter)
             .fontColor('#E8D5C4')
