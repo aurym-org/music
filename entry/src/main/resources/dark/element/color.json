@@ -1,0 +1,12 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#1C1C1C"
+    },
+    {
+      "name": "splash_logo_text_color",
+      "value": "#F5F1E8"
+    }
+  ]
+}
