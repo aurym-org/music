@@ -9,3 +9,4 @@ oh-package-lock.json5
 node_modules
 .preview
 .test
+.vscode
