@@ -286,7 +286,7 @@ export struct ControlAreaComponent {
               isPlay: this.isPlay,
               selectIndex: this.selectIndex
             })
-              .reuseId(item.title);
+              .reuseId(item.id.toString());
           }
         }, (item: SongItem, index: number) => item.toString() + index.toString())
       }

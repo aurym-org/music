@@ -11,8 +11,13 @@ export interface BiliFavDetail {
 }
 
 interface data {
+  info: info,
   medias: BiliFavDetailItemModel[],
   has_more: boolean
+}
+
+interface info {
+  media_count: number
 }
 
 export interface BiliFavDetailItemModel {
