@@ -7,11 +7,11 @@
         "material": {
           "certpath": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_AurymMusic_unz65e86cr0652JN69T3IbhSPOF3ek4p5rK8SHDmDS8=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001B26EE6E5A834540E952AC4BE9525B2A14C5441AB1DD040DB70EE2CBEAB7AB70F13C8C38A260E13F",
+          "keyPassword": "0000001B1E1A4C4BDEC9022ECB1E38D58E35A24E13C23A7308153DF9EFC8D72560C11595DEDA96E847CB5A",
           "profile": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_AurymMusic_unz65e86cr0652JN69T3IbhSPOF3ek4p5rK8SHDmDS8=.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "C:\\Users\\rouxiaobei\\.ohos\\config\\default_AurymMusic_unz65e86cr0652JN69T3IbhSPOF3ek4p5rK8SHDmDS8=.p12",
-          "storePassword": "0000001B3BCED9B2EF7A48E4EC8E09C54CD35C4D8C0573F733277F752B895070142B24A5CFD3AE9F2A3B4E"
+          "storePassword": "0000001B12D29635E510E10B69598434EAAFA7C456D249F44A7D77E01B6A20722EE254716DB8D2DBF27BC4"
         }
       }
     ],
