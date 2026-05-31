@@ -23,18 +23,15 @@ const TAG = 'ControlAreaComponent';
 export struct ControlAreaComponent {
   @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
   @StorageLink('isPlay') isPlay: boolean = false;
-  @StorageLink('currentTime') currentTime: string = '00:00';
-  @StorageLink('totalTime') totalTime: string = '00:00';
+  @StorageProp('currentTime') currentTime: string = '00:00';
+  @StorageProp('totalTime') totalTime: string = '00:00';
   @StorageLink('progress') value: number = 0;
-  @StorageLink('progressMax') max: number = 0;
-  @State playModeIndex: number = (() => {
-    const idx = PlayModeSwitchList.indexOf(PreferencesUtil.getInstance().getValue(PLAY_MODE_ID) as MusicPlayMode);
-    return idx === -1 ? 0 : idx;
-  })();  @StorageLink('pageShowTime') pageShowTime: number = 0;
-  @StorageLink('songList') songList: SongItem[] = [];
+  @StorageProp('progressMax') max: number = 0;
+  @StorageLink('pageShowTime') pageShowTime: number = 0;
+  @StorageProp('songList') songList: SongItem[] = [];
   @State isShowPlayList: boolean = false;
-  @StorageLink('playMode') playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue(PLAY_MODE_ID) as MusicPlayMode ?? PlayModeSwitchList[this.playModeIndex];
-  @StorageLink('selectIndex') selectIndex: number = 0;
+  @StorageLink('playMode') playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue(PLAY_MODE_ID) as MusicPlayMode ?? MusicPlayMode.ORDER;
+  @StorageProp('selectIndex') selectIndex: number = 0;
   @StorageLink('isSilentMode') @Watch('isSilentModeChange') isSilentMode: boolean = false;
   @StorageLink('isLoading') isLoading: boolean = true;
   @State speed: number = 1;
@@ -57,13 +54,10 @@ export struct ControlAreaComponent {
   }
 
   switchPlayMode() {
-    if (this.playModeIndex === PlayModeSwitchList.length - 1) {
-      this.playModeIndex = 0;
-    } else {
-      this.playModeIndex++;
-    }
-    this.playMode = PlayModeSwitchList[this.playModeIndex];
-    Logger.info(TAG, 'playModeIndex is' + this.playModeIndex);
+    const curIndex = PlayModeSwitchList.indexOf(this.playMode);
+    const nextIndex = (curIndex === -1 ? 0 : curIndex + 1) % PlayModeSwitchList.length;
+    this.playMode = PlayModeSwitchList[nextIndex];
+    Logger.info(TAG, 'playMode is ' + MusicPlayMode[this.playMode]);
     this.promptAction.openToast({
       message: `${this.playMode === MusicPlayMode.ORDER ?
         this.resourceConversion.getStringValueFromResource($r('app.string.sequential_playback')) :
@@ -286,7 +280,12 @@ export struct ControlAreaComponent {
       List({ scroller: this.scroller }) {
         LazyForEach(new SongDataSource(this.songList), (item: SongItem, index: number) => {
           ListItem() {
-            MusicListContainer({ item: item, index: index })
+            MusicListContainer({
+              item: item,
+              index: index,
+              isPlay: this.isPlay,
+              selectIndex: this.selectIndex
+            })
               .reuseId(item.title);
           }
         }, (item: SongItem, index: number) => item.toString() + index.toString())
@@ -487,9 +486,9 @@ function controlImageBuilder() {
 @Reusable
 @Component
 struct MusicListContainer {
-  @StorageLink('isPlay') isPlay: boolean = false;
+  @Prop isPlay: boolean = false;
   @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
-  @StorageLink('selectIndex') selectIndex: number = 0;
+  @Prop selectIndex: number = 0;
   item: SongItem | undefined = undefined;
   index: number | undefined = undefined;
 

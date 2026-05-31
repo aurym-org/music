@@ -20,7 +20,6 @@ export class AVPlayerController {
   private currentState: media.AVPlayerState = 'idle';
   private waitPlay: boolean = false;
   static avPlayerController: AVPlayerController | undefined;
-  private speedMap: Map<number, media.PlaybackSpeed> = new Map();
   private preparedResolve?: () => void;
   private preparedReject?: (error: Error) => void;
   private preparedPromise?: Promise<void>;
@@ -72,9 +71,21 @@ export class AVPlayerController {
     let playStrategy : media.PlaybackStrategy = {
       preferredBufferDuration: 1,
     };
-    if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+    if (AppStorage.get<number>('switchVersion') !== currentVersion) {
+      if (this.preparedReject) {
+        this.preparedReject(new Error('setPlayerUrl cancelled due to version change'));
+        this.cleanupPreparedPromise();
+      }
+      return;
+    }
     await this.avPlayer!.reset();
-    if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+    if (AppStorage.get<number>('switchVersion') !== currentVersion) {
+      if (this.preparedReject) {
+        this.preparedReject(new Error('setPlayerUrl cancelled after reset'));
+        this.cleanupPreparedPromise();
+      }
+      return;
+    }
     await this.avPlayer!.setMediaSource(mediaSource, playStrategy);
   }
 
@@ -87,8 +98,14 @@ export class AVPlayerController {
     if (!this.avPlayer) {
       return;
     }
-    await this.setPlayerUrl(src);
-    await this.waitForPrepared();
+    try {
+      await this.setPlayerUrl(src);
+      await this.waitForPrepared();
+    } catch (e) {
+      Logger.error(TAG, `loadSongAssent failed: ${e.message}`);
+      AppStorage.setOrCreate('isLoading', false);
+      return;
+    }
     Logger.info(TAG, `set avPlayer url is ${this.avPlayer.url}, curState is ${this.avPlayer?.state}`);
   }
   // [End loadSongAssent]
@@ -101,21 +118,16 @@ export class AVPlayerController {
     return AVPlayerController.avPlayerController;
   }
 
-  private genSpeedMap() {
-    const SPEED_ARR = [
-      [0.25, media.PlaybackSpeed.SPEED_FORWARD_0_25_X],
-      [0.5, media.PlaybackSpeed.SPEED_FORWARD_0_50_X],
-      [0.75, media.PlaybackSpeed.SPEED_FORWARD_0_75_X],
-      [1, media.PlaybackSpeed.SPEED_FORWARD_1_00_X],
-      [1.25, media.PlaybackSpeed.SPEED_FORWARD_1_25_X],
-      [1.5, media.PlaybackSpeed.SPEED_FORWARD_1_50_X],
-      [1.75, media.PlaybackSpeed.SPEED_FORWARD_1_75_X],
-      [2, media.PlaybackSpeed.SPEED_FORWARD_2_00_X],
-    ]
-    SPEED_ARR.forEach((item) => {
-      this.speedMap.set(item[0], item[1]);
-    })
-  }
+  private static readonly SPEED_MAP: Map<number, media.PlaybackSpeed> = new Map([
+    [0.25, media.PlaybackSpeed.SPEED_FORWARD_0_25_X],
+    [0.5, media.PlaybackSpeed.SPEED_FORWARD_0_50_X],
+    [0.75, media.PlaybackSpeed.SPEED_FORWARD_0_75_X],
+    [1, media.PlaybackSpeed.SPEED_FORWARD_1_00_X],
+    [1.25, media.PlaybackSpeed.SPEED_FORWARD_1_25_X],
+    [1.5, media.PlaybackSpeed.SPEED_FORWARD_1_50_X],
+    [1.75, media.PlaybackSpeed.SPEED_FORWARD_1_75_X],
+    [2, media.PlaybackSpeed.SPEED_FORWARD_2_00_X],
+  ]);
 
   // [Start initAVPlayer]
   // Initialize the player
@@ -125,7 +137,6 @@ export class AVPlayerController {
       return;
     }
     this.avPlayer = await media.createAVPlayer();
-    this.genSpeedMap();
     Logger.info(TAG, `createAVPlayer success, curState is ${this.avPlayer?.state}`);
     this.setAVPlayerCallbacks();
     Logger.info(TAG, `setAVPlayerCallbacks success, curState is ${this.avPlayer?.state}`);
@@ -147,7 +158,7 @@ export class AVPlayerController {
 
   private switchSpeed(speed: number): media.PlaybackSpeed {
     let avPlayerSpeed: media.PlaybackSpeed | undefined;
-    avPlayerSpeed = this.speedMap.get(speed);
+    avPlayerSpeed = AVPlayerController.SPEED_MAP.get(speed);
     if (!avPlayerSpeed) {
       avPlayerSpeed = media.PlaybackSpeed.SPEED_FORWARD_1_00_X;
     }
@@ -248,7 +259,19 @@ export class AVPlayerController {
       Logger.error(TAG, 'avPlayer is undefined')
       return;
     }
+    if (this.preparedReject) {
+      this.preparedReject(new Error('Player released'));
+      this.cleanupPreparedPromise();
+    }
+    this.avPlayer.off('error');
+    this.avPlayer.off('stateChange');
+    this.avPlayer.off('durationUpdate');
+    this.avPlayer.off('timeUpdate');
+    this.avPlayer.off('audioInterrupt');
+    this.avPlayer.off('volumeChange');
+    this.avPlayer.off('audioOutputDeviceChangeWithInfo');
     this.avPlayer.release();
+    this.avPlayer = undefined;
     Logger.error(TAG, 'avPlayer release success');
   }
   // [End release]
@@ -342,7 +365,6 @@ export class AVPlayerController {
             Logger.error(TAG, 'avSessionController is undefined');
             return;
           }
-          this.avSessionController.setAVMetadata();
           if (this.waitPlay) {
             this.play();
           }

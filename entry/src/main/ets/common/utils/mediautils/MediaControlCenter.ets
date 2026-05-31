@@ -35,6 +35,7 @@ export class MediaControlCenter {
   private static mediaControlFunction: MediaControlCenter;
   private switchTimer: number = -1;
   private switchVersion: number = 0;
+  private lastProgressUpdateTime: number = 0;
 
   constructor() {
     this.songItemBuilder = new SongItemBuilder();
@@ -104,10 +105,13 @@ export class MediaControlCenter {
     AppStorage.setOrCreate('switchVersion', this.switchVersion);
     await getFavoriteDetail(ContentConstants.FAV_ID);
     this.songList = AppStorage.get('songList')!;
-    await this.initAvplayer();
+    await Promise.all([
+      this.initAvplayer(),
+      this.initAVSession(),
+      this.initAudioManager()
+    ]);
     await this.loadSongAssent();
-    await this.initAVSession();
-    await this.initAudioManager();
+    this.avSessionController?.setAVMetadata();
     this.setSilentModeFromPrefer();
     this.setVolumeFromPrefer();
     this.setPlayModeFromPrefer();
@@ -143,7 +147,6 @@ export class MediaControlCenter {
       Logger.error(TAG, 'avSessionController is undefined');
       return;
     }
-    this.avSessionController.setAVMetadata();
     if (index !== this.musicIndex) {
       this.setLoading(true);
       this.switchVersion++;
@@ -455,9 +458,18 @@ export class MediaControlCenter {
     if (!this.avSessionController) {
       return;
     }
+    const now = Date.now();
+    if (now - this.lastProgressUpdateTime < 300) {
+      return;
+    }
+    this.lastProgressUpdateTime = now;
     this.avSessionController.setProgressState(ms);
     AppStorage.setOrCreate('progress', ms);
-    AppStorage.setOrCreate('currentTime', MediaTools.msToCountdownTime(ms));
+    const newTimeStr = MediaTools.msToCountdownTime(ms);
+    const oldTimeStr = AppStorage.get<string>('currentTime');
+    if (newTimeStr !== oldTimeStr) {
+      AppStorage.setOrCreate('currentTime', newTimeStr);
+    }
   }
 
   private updateMusicIndex(musicIndex: number) {

@@ -33,10 +33,10 @@ function convertToSongItem(item: BiliFavDetailItemModel, index: number): SongIte
  * @returns 包含所有音频项的数组
  */
   async function getFavoriteDetail(mediaId: number, pageSize: number = 40): Promise<void> {
-  let currentPage: number = 1;           // 当前页码，从第一页开始
-  let hasMore: boolean = true;           // 是否还有更多数据
+  let currentPage: number = 1;
+  let hasMore: boolean = true;
+  let songList: SongItem[] = [];
 
-  songList.length = 0;
   Logger.info(TAG, `开始获取收藏夹 ${mediaId} 的所有歌曲，每页 ${pageSize} 条`);
 
   while (hasMore) {
@@ -83,7 +83,6 @@ function convertToSongItem(item: BiliFavDetailItemModel, index: number): SongIte
       Logger.info(TAG, `第 ${currentPage} 页: 获取到 ${currentSongs.length} 条数据`);
 
       songList = songList.concat(currentSongs);
-      AppStorage.setOrCreate('songList', songList);
 
       hasMore = responseData.data.has_more === true;
 
@@ -98,10 +97,8 @@ function convertToSongItem(item: BiliFavDetailItemModel, index: number): SongIte
       throw new Error(`获取收藏夹数据失败: ${error.message}`);
     }
   }
-
+  AppStorage.setOrCreate('songList', songList);
   Logger.info(TAG, `总共获取到 ${songList.length} 首歌曲`);
 }
 
-let songList: SongItem[] = [];
-
-export { songList, getFavoriteDetail };
+export { getFavoriteDetail };

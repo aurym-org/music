@@ -48,7 +48,6 @@ export class AVSessionController {
     this.AVSession = await avSession.createAVSession(this.context, "PLAY_AUDIO", 'audio');
     await this.AVSession.activate();
     Logger.info(TAG, `session create successed : sessionId : ${this.AVSession.sessionId}`);
-    await this.setAVMetadata();
     this.setLaunchAbility();
     this.setListenerForMesFromController();
     if (this.musicIndex !== undefined) {
@@ -98,7 +97,7 @@ export class AVSessionController {
   // Set metadata
   public async setAVMetadata() {
     this.musicIndex = AppStorage.get('selectIndex') ? AppStorage.get('selectIndex') : 0;
-    Logger.info(TAG, 'current musicIndex is:' + this.musicIndex);
+    Logger.info(TAG, 'current musicIndex is: ' + this.musicIndex);
     if (this.musicIndex === undefined) {
       this.musicIndex = 0;
     }

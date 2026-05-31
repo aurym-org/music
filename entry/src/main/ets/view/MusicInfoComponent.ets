@@ -15,8 +15,8 @@ import { ControlAreaComponent } from './ControlAreaComponent';
 @Component
 export struct MusicInfoComponent {
   @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
-  @StorageLink('isFoldFull') isFoldFull: boolean = false;
-  @StorageLink('songList') songList: SongItem[] = [];
+  @StorageProp('isFoldFull') isFoldFull: boolean = false;
+  @StorageProp('songList') songList: SongItem[] = [];
   @StorageProp('selectIndex') selectIndex: number = 0;
   @StorageLink('isFavorite') isFavorite: boolean = false;
 
