@@ -529,7 +529,7 @@ struct MusicListContainer {
         if (this.selectIndex === this.index && this.isPlay) {
           MediaControlCenter.getInstance().pause();
         } else {
-          MediaControlCenter.getInstance().play(this.index!);
+          MediaControlCenter.getInstance().switchToIndex(this.index!);
         }
       })
       .height($r('app.float.list_item_height'))

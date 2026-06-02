@@ -34,7 +34,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
 
   private async playMusic() {
     await MediaControlCenter.getInstance().init();
-    MediaControlCenter.getInstance().play(0);
+    MediaControlCenter.getInstance().switchToIndex(0);
   }
 
   /**
