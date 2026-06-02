@@ -28,7 +28,7 @@ export default class SongItemBuilder {
   putAudioUrl(bvid: string, raw_url: string): void {
     const data = JSON.stringify({
       url: raw_url,
-      expire: Number(url.URL.parseURL(raw_url).params.get('deadline'))
+      expire: Number(url.URL.parseURL(raw_url).params.get('deadline')) * 1000
     });
     PreferencesUtil.getInstance().preferencesPut(bvid, data);
   }
@@ -39,9 +39,9 @@ export default class SongItemBuilder {
     try {
       const cacheData: CacheData = JSON.parse(str);
       if (cacheData.expire > Date.now()) return cacheData.url;
-      await PreferencesUtil.getInstance().removeKey(bvid);   // 过期删除
+      await PreferencesUtil.getInstance().removeKey(bvid);
     } catch {
-      await PreferencesUtil.getInstance().removeKey(bvid);    // 数据损坏删除
+      await PreferencesUtil.getInstance().removeKey(bvid);
     }
     return null;
   }
