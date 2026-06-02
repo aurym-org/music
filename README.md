@@ -56,6 +56,7 @@ git clone https://github.com/fbotp/AurymMusic.git
 │  │     │  ├──MediaControlCenter.ets                     // 媒体控制中心类
 │  │     │  └──MediaTools.ets                             // 媒体工具处理类
 │  │     ├──BackgroundUtil.ets                            // 后台任务类
+│  │     ├──BiliWbiUtil.ets                               // BiliWbi加密工具类
 │  │     ├──BreakpointSystem.ets                          // 断点系统类
 │  │     ├──Logger.ets                                    // 日志类
 │  │     ├──PreferencesUtil.ets                           // 首选项工具类
