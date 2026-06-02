@@ -208,12 +208,16 @@ export class MediaControlCenter {
 
   // Set a secure random number
   private setRandom() {
-    let random0To1 = this.getSecureRandom0To1();
-    let num = Math.round(random0To1 * (this.songList.length - 1));
-    Logger.info(TAG, `random num is ${num},max length is ${this.songList.length - 1}`)
-    if (this.musicIndex === num) {
-      this.setRandom();
+    const max = this.songList.length - 1;
+    if (max <= 0) {
+      return 0;
     }
+    let num: number;
+    do {
+      const random0To1 = this.getSecureRandom0To1();
+      num = Math.round(random0To1 * max);
+    } while (num === this.musicIndex);
+    Logger.info(TAG, `random num is ${num}, max length is ${max}`);
     return num;
   }
 
