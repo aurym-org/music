@@ -53,6 +53,19 @@ export struct ControlAreaComponent {
     MediaControlCenter.getInstance().setVolume(this.volume)
   }
 
+  getVolumeSymbol(): Resource {
+    if (this.isSilentMode || this.volume === 0) {
+      return $r('sys.symbol.speaker_wave_3_slash');
+    }
+    if (this.volume > 66) {
+      return $r('sys.symbol.speaker_wave_3');
+    } else if (this.volume > 33) {
+      return $r('sys.symbol.speaker_wave_2');
+    } else {
+      return $r('sys.symbol.speaker_wave_1');
+    }
+  }
+
   switchPlayMode() {
     const curIndex = PlayModeSwitchList.indexOf(this.playMode);
     const nextIndex = (curIndex === -1 ? 0 : curIndex + 1) % PlayModeSwitchList.length;
@@ -133,7 +146,7 @@ export struct ControlAreaComponent {
               Logger.info(TAG, 'speedBuilder');
             }
           })
-        SymbolGlyph($r('sys.symbol.speaker_wave_3'))
+        SymbolGlyph(this.getVolumeSymbol())
           .fontSize(26)
           .renderingStrategy(SymbolRenderingStrategy.SINGLE)
           .fontColor([Color.White])
@@ -352,7 +365,7 @@ export struct ControlAreaComponent {
   @Builder
   volumeTitle() {
     Row() {
-      SymbolGlyph($r('sys.symbol.speaker_wave_3'))
+      SymbolGlyph(this.getVolumeSymbol())
         .fontSize(26)
         .renderingStrategy(SymbolRenderingStrategy.SINGLE)
         .fontColor([Color.Black])
