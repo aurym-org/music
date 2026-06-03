@@ -6,16 +6,17 @@
 
 import { PromptAction } from '@kit.ArkUI';
 import { BreakpointConstants } from '../common/constants/BreakpointConstants';
-import { ContentConstants } from '../common/constants/ContentConstants';
 import { MusicPlayMode, PlayerConstants, PlayModeSwitchList, VOLUME_ID, PLAY_MODE_ID } from '../common/constants/PlayerConstants';
 import { StyleConstants } from '../common/constants/StyleConstants';
 import { BreakpointType } from '../common/utils/BreakpointSystem';
 import Logger from '../common/utils/Logger';
 import { ResourceConversion } from '../common/utils/ResourceConversion';
 import { SongItem } from '../viewmodel/SongData';
-import { SongDataSource } from '../viewmodel/SongDataSource';
 import { MediaControlCenter } from '../common/utils/mediautils/MediaControlCenter';
 import { PreferencesUtil } from '../common/utils/PreferencesUtil';
+import { PlaylistControl } from './PlaylistControl';
+import { SpeedControl } from './SpeedControl';
+import { VolumeControl } from './VolumeControl';
 
 const TAG = 'ControlAreaComponent';
 
@@ -29,41 +30,23 @@ export struct ControlAreaComponent {
   @StorageProp('progressMax') max: number = 0;
   @StorageLink('pageShowTime') pageShowTime: number = 0;
   @StorageProp('songList') songList: SongItem[] = [];
-  @State isShowPlayList: boolean = false;
   @StorageLink('playMode') playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue(PLAY_MODE_ID) as MusicPlayMode ?? MusicPlayMode.ORDER;
   @StorageProp('selectIndex') selectIndex: number = 0;
   @StorageLink('isSilentMode') @Watch('isSilentModeChange') isSilentMode: boolean = false;
   @StorageLink('isLoading') isLoading: boolean = true;
-  @State speed: number = 1;
   @StorageLink('currentVolume') @Watch('currentVolumeChange') volume: number = 0;
-  @State isShowSpeedBuild: boolean = false;
-  @State isShowVolumeBuild: boolean = false;
-  private scroller: Scroller = new Scroller();
   private resourceConversion: ResourceConversion = new ResourceConversion();
   uiContext: UIContext = this.getUIContext();
   promptAction: PromptAction = this.uiContext.getPromptAction();
 
   isSilentModeChange() {
-    Logger.info(TAG, `isSilentMode is change,current isSilentMode is ${this.isSilentMode}`)
-    MediaControlCenter.getInstance().setSilentMode(this.isSilentMode)
+    Logger.info(TAG, `isSilentMode is change,current isSilentMode is ${this.isSilentMode}`);
+    MediaControlCenter.getInstance().setSilentMode(this.isSilentMode);
   }
 
   currentVolumeChange() {
-    Logger.info(TAG, `volume is change, current volume is ${this.volume}`)
-    MediaControlCenter.getInstance().setVolume(this.volume)
-  }
-
-  getVolumeSymbol(): Resource {
-    if (this.isSilentMode || this.volume === 0) {
-      return $r('sys.symbol.speaker_wave_3_slash');
-    }
-    if (this.volume > 66) {
-      return $r('sys.symbol.speaker_wave_3');
-    } else if (this.volume > 33) {
-      return $r('sys.symbol.speaker_wave_2');
-    } else {
-      return $r('sys.symbol.speaker_wave_1');
-    }
+    Logger.info(TAG, `volume is change, current volume is ${this.volume}`);
+    MediaControlCenter.getInstance().setVolume(this.volume);
   }
 
   switchPlayMode() {
@@ -71,12 +54,21 @@ export struct ControlAreaComponent {
     const nextIndex = (curIndex === -1 ? 0 : curIndex + 1) % PlayModeSwitchList.length;
     this.playMode = PlayModeSwitchList[nextIndex];
     Logger.info(TAG, 'playMode is ' + MusicPlayMode[this.playMode]);
+    let msgRes: Resource;
+    switch (this.playMode) {
+      case MusicPlayMode.ORDER:
+        msgRes = $r('app.string.sequential_playback');
+        break;
+      case MusicPlayMode.RANDOM:
+        msgRes = $r('app.string.random_playback');
+        break;
+      case MusicPlayMode.SINGLE_CYCLE:
+      default:
+        msgRes = $r('app.string.single_playback');
+        break;
+    }
     this.promptAction.openToast({
-      message: `${this.playMode === MusicPlayMode.ORDER ?
-        this.resourceConversion.getStringValueFromResource($r('app.string.sequential_playback')) :
-        this.playMode === MusicPlayMode.RANDOM ?
-          this.resourceConversion.getStringValueFromResource($r('app.string.random_playback')) :
-          this.resourceConversion.getStringValueFromResource($r('app.string.single_playback'))}`
+      message: this.resourceConversion.getStringValueFromResource(msgRes)
     });
     MediaControlCenter.getInstance().setPlayMode(this.playMode);
   }
@@ -94,24 +86,7 @@ export struct ControlAreaComponent {
             this.switchPlayMode()
           })
 
-        SymbolGlyph($r('sys.symbol.music_note_list'))
-          .fontSize(26)
-          .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-          .fontColor([Color.White])
-          .opacity(0.86)
-          .onClick(() => {
-            this.isShowPlayList = true;
-          })
-          .bindSheet($$this.isShowPlayList, this.musicListBuilder(), {
-            detents: [SheetSize.MEDIUM],
-            dragBar: false,
-            showClose: false,
-            preferType: SheetType.CENTER,
-            onWillAppear: () => {
-              Logger.info(TAG, 'musicListBuilder');
-              this.scroller.scrollToIndex(this.selectIndex, false, ScrollAlign.CENTER);
-            }
-          })
+        PlaylistControl()
 
         SymbolGlyph(this.isSilentMode ? $r('sys.symbol.bell_slash') : $r('sys.symbol.bell'))
           .fontSize(26)
@@ -126,53 +101,10 @@ export struct ControlAreaComponent {
               let preVolume: number = PreferencesUtil.getInstance().getValue(VOLUME_ID) as number;
               this.volume = preVolume ? preVolume : 10;
             }
-            MediaControlCenter.getInstance().setSilentMode(this.isSilentMode)
           })
 
-        SymbolGlyph($r('sys.symbol.video_speed'))
-          .fontSize(26)
-          .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-          .fontColor([Color.White])
-          .opacity(0.86)
-          .onClick(() => {
-            this.isShowSpeedBuild = true;
-          })
-          .bindSheet($$this.isShowSpeedBuild, this.speedBuilder(), {
-            detents: [SheetSize.FIT_CONTENT],
-            dragBar: false,
-            showClose: false,
-            preferType: SheetType.CENTER,
-            onWillAppear: () => {
-              Logger.info(TAG, 'speedBuilder');
-            }
-          })
-        SymbolGlyph(this.getVolumeSymbol())
-          .fontSize(26)
-          .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-          .fontColor([Color.White])
-          .opacity(0.86)
-          .bindSheet($$this.isShowVolumeBuild, this.volumeBuilder(), {
-            detents: [SheetSize.FIT_CONTENT],
-            dragBar: false,
-            showClose: false,
-            preferType: SheetType.CENTER,
-            onWillAppear: async () => {
-              Logger.info(TAG, 'volumeBuilder');
-              try {
-                if (this.isSilentMode) {
-                  this.volume = 0;
-                } else {
-                  this.volume = MediaControlCenter.getInstance().getVolume();
-                  Logger.info(TAG, `current volume is ${this.volume}`)
-                }
-              } catch (error) {
-                Logger.info(TAG, `failed to get volume, error is ${error}`)
-              }
-            }
-          })
-          .onClick(() => {
-            this.isShowVolumeBuild = true;
-          })
+        SpeedControl()
+        VolumeControl()
       }
       .width(StyleConstants.FULL_WIDTH)
       .justifyContent(FlexAlign.SpaceBetween)
@@ -285,208 +217,6 @@ export struct ControlAreaComponent {
       })
     }
   }
-
-  @Builder
-  musicListBuilder() {
-    Column() {
-      this.playListTitle();
-      List({ scroller: this.scroller }) {
-        LazyForEach(new SongDataSource(this.songList), (item: SongItem, index: number) => {
-          ListItem() {
-            MusicListContainer({
-              item: item,
-              index: index,
-              isPlay: this.isPlay,
-              selectIndex: this.selectIndex
-            })
-              .reuseId(item.id.toString());
-          }
-        }, (item: SongItem, index: number) => item.toString() + index.toString())
-      }
-      .height(StyleConstants.FULL_HEIGHT)
-      .width(StyleConstants.FULL_WIDTH)
-      .backgroundColor($r('sys.color.ohos_id_color_list_card_bg'))
-      .margin({ top: $r('app.float.list_area_margin_top') })
-      .lanes(this.currentBreakpoint === BreakpointConstants.BREAKPOINT_LG ?
-        ContentConstants.COL_TWO : ContentConstants.COL_ONE)
-      .layoutWeight(1)
-      .divider({
-        color: $r('sys.color.ohos_id_color_list_separator'),
-        strokeWidth: $r('app.float.stroke_width'),
-        startMargin: $r('app.float.list_item_padding'),
-        endMargin: $r('app.float.list_item_padding')
-      })
-    }
-    .padding({
-      top: this.currentBreakpoint === BreakpointConstants.BREAKPOINT_SM ? 0 : $r('app.float.list_area_padding_top'),
-      bottom: $r('app.float.list_area_padding_bottom')
-    })
-    .backgroundColor($r('sys.color.ohos_id_color_list_card_bg'))
-  }
-
-  @Builder
-  volumeBuilder() {
-    Column() {
-      this.volumeTitle()
-      Row() {
-        // [Start volumeBuilder]
-        Slider({
-          value: this.volume,
-          min: 0,
-          max: 100,
-          step: 1,
-          style: SliderStyle.OutSet
-        })
-          .showTips(false)
-          .layoutWeight(1)
-          .onChange((value: number, _mode: SliderChangeMode) => {
-            this.volume = value;
-            if (this.volume === 0) {
-              this.isSilentMode = true
-            } else {
-              this.isSilentMode = false;
-            }
-          })
-        // [End volumeBuilder]
-      }
-      .padding({
-        left: 15,
-        right: 15
-      })
-
-    }
-    .backgroundColor(Color.White)
-    .padding({
-      top: this.currentBreakpoint === BreakpointConstants.BREAKPOINT_SM ? 0 : $r('app.float.list_area_padding_top'),
-      bottom: $r('app.float.list_area_padding_bottom')
-    })
-  }
-
-  @Builder
-  volumeTitle() {
-    Row() {
-      SymbolGlyph(this.getVolumeSymbol())
-        .fontSize(26)
-        .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-        .fontColor([Color.Black])
-      Text($r('app.string.volume_setting'))
-        .padding({ left: $r('app.float.play_all_text_padding') })
-        .fontColor(Color.Black)
-        .fontSize(new BreakpointType({
-          sm: $r('app.float.play_font_sm'),
-          md: $r('app.float.play_font_md'),
-          lg: $r('app.float.play_font_lg')
-        }).getValue(this.currentBreakpoint))
-    }
-    .height($r('app.float.play_all_area_height'))
-    .width(StyleConstants.FULL_WIDTH)
-    .padding({
-      left: $r('app.float.play_all_area_padding'),
-      right: $r('app.float.play_all_area_padding')
-    })
-    .borderRadius({
-      topRight: $r('app.float.play_all_border_radius'),
-      topLeft: $r('app.float.play_all_border_radius')
-    })
-  }
-
-  @Builder
-  speedBuilder() {
-    Column() {
-      this.speedTitle()
-      Row() {
-        // [Start speedBuilder]
-        Slider({
-          value: this.speed,
-          min: 0.25,
-          max: 2,
-          step: 0.25,
-          style: SliderStyle.OutSet
-        })
-          .layoutWeight(1)
-          .showTips(true, this.speed.toString())
-          .showSteps(true)
-          .onChange((value: number, mode: SliderChangeMode) => {
-            this.speed = value;
-            MediaControlCenter.getInstance().setSpeed(this.speed);
-            Logger.info(TAG, 'value:' + value + 'mode:' + mode.toString());
-          })
-        // [End speedBuilder]
-        Text(this.speed.toString()).fontSize(15).width(30)
-      }
-      .padding({
-        left: 15,
-        right: 15
-      })
-    }
-    .backgroundColor(Color.White)
-    .padding({
-      top: this.currentBreakpoint === BreakpointConstants.BREAKPOINT_SM ? 0 : $r('app.float.list_area_padding_top'),
-      bottom: $r('app.float.list_area_padding_bottom')
-    })
-  }
-
-  @Builder
-  speedTitle() {
-    Row() {
-      SymbolGlyph($r('sys.symbol.video_speed'))
-        .fontSize(26)
-        .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-        .fontColor([Color.Black])
-      Text($r('app.string.speed_setting'))
-        .padding({ left: $r('app.float.play_all_text_padding') })
-        .fontColor(Color.Black)
-        .fontSize(new BreakpointType({
-          sm: $r('app.float.play_font_sm'),
-          md: $r('app.float.play_font_md'),
-          lg: $r('app.float.play_font_lg')
-        }).getValue(this.currentBreakpoint))
-    }
-    .height($r('app.float.play_all_area_height'))
-    .width(StyleConstants.FULL_WIDTH)
-    .padding({
-      left: $r('app.float.play_all_area_padding'),
-      right: $r('app.float.play_all_area_padding')
-    })
-    .borderRadius({
-      topRight: $r('app.float.play_all_border_radius'),
-      topLeft: $r('app.float.play_all_border_radius')
-    })
-  }
-
-  @Builder
-  playListTitle() {
-    Row() {
-      Image($r('app.media.ic_sort_list'))
-        .height($r('app.float.play_all_icon_size'))
-        .width($r('app.float.play_all_icon_size'))
-        .fillColor($r('sys.color.ohos_id_color_text_primary'))
-      Text($r('app.string.play_list', this.songList.length))
-        .maxLines(ContentConstants.PLAY_ALL_MAX_LINES)
-        .padding({ left: $r('app.float.play_all_text_padding') })
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .fontSize(new BreakpointType({
-          sm: $r('app.float.play_font_sm'),
-          md: $r('app.float.play_font_md'),
-          lg: $r('app.float.play_font_lg')
-        }).getValue(this.currentBreakpoint))
-    }
-    .height($r('app.float.play_all_area_height'))
-    .width(StyleConstants.FULL_WIDTH)
-    .backgroundColor($r('sys.color.ohos_id_color_list_card_bg'))
-    .padding({
-      left: $r('app.float.play_all_area_padding'),
-      right: $r('app.float.play_all_area_padding')
-    })
-    .borderRadius({
-      topRight: $r('app.float.play_all_border_radius'),
-      topLeft: $r('app.float.play_all_border_radius')
-    })
-    .position({
-      x: 0,
-      y: 0
-    })
-  }
 }
 
 @Extend(Image)
@@ -494,64 +224,4 @@ function controlImageBuilder() {
   .aspectRatio(1)
   .opacity(0.86)
   .objectFit(ImageFit.Contain)
-}
-
-@Reusable
-@Component
-struct MusicListContainer {
-  @Prop isPlay: boolean = false;
-  @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
-  @Prop selectIndex: number = 0;
-  item: SongItem | undefined = undefined;
-  index: number | undefined = undefined;
-
-  build() {
-    Column() {
-      Row() {
-        if (this.selectIndex === this.index) {
-          Image(this.isPlay ? $r('app.media.ic_wave'): $r('app.media.ic_wave_static'))
-            .width($r("app.float.wave_width"))
-            .height($r("app.float.wave_height"))
-        }
-        Column() {
-          Text(this.item!.title)
-            .fontColor(this.selectIndex === this.index ? $r('sys.color.ohos_id_color_badge_red') : $r('sys.color.ohos_id_color_text_primary'))
-            .fontSize(new BreakpointType({
-              sm: $r('app.float.item_font_sm'),
-              md: $r('app.float.item_font_md'),
-              lg: $r('app.float.item_font_lg')
-            }).getValue(this.currentBreakpoint))
-            .margin({ bottom: $r('app.float.list_item_title_margin') })
-            .maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Row() {
-            Text(this.item!.singer)
-              .opacity($r('app.float.singer_opacity'))
-              .fontColor(this.selectIndex === this.index ? $r('sys.color.ohos_id_color_badge_red') : $r('sys.color.ohos_id_color_text_primary'))
-              .fontSize(new BreakpointType({
-                sm: $r('app.float.singer_title_sm'),
-                md: $r('app.float.singer_title_md'),
-                lg: $r('app.float.singer_title_lg')
-              }).getValue(this.currentBreakpoint))
-          }
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-      }
-      .onClick(() => {
-        if (this.selectIndex === this.index && this.isPlay) {
-          MediaControlCenter.getInstance().pause();
-        } else {
-          MediaControlCenter.getInstance().switchToIndex(this.index!);
-        }
-      })
-      .height($r('app.float.list_item_height'))
-      .width(StyleConstants.FULL_WIDTH)
-    }
-    .padding({
-      left: $r('app.float.list_item_padding'),
-      right: $r('app.float.list_item_padding')
-    })
-    .backgroundColor($r('sys.color.ohos_id_color_list_card_bg'))
-  }
 }
