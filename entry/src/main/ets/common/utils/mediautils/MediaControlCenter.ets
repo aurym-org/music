@@ -137,8 +137,6 @@ export class MediaControlCenter {
   }
 
   public async switchToIndex(newIndex: number) {
-    AppStorage.setOrCreate('progress', 0);
-    AppStorage.setOrCreate('currentTime', '00:00');
     this.setLoading(true);
     this.switchVersion++;
     AppStorage.setOrCreate('switchVersion', this.switchVersion);
@@ -278,6 +276,7 @@ export class MediaControlCenter {
     }
     AppStorage.setOrCreate('currentTime', '00:00');
     AppStorage.setOrCreate('progress', 0);
+    this.avSessionController?.setProgressState(0);
     try {
       await this.avPlayerController.stop();
     } catch (err) {
