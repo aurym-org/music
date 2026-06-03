@@ -41,9 +41,6 @@ export class MediaControlCenter {
     this.songItemBuilder = new SongItemBuilder();
   }
 
-  /**
-   * 设置全局加载状态
-   */
   private setLoading(loading: boolean) {
     AppStorage.setOrCreate('isLoading', loading);
   }
@@ -148,7 +145,9 @@ export class MediaControlCenter {
       clearTimeout(this.switchTimer);
     }
     this.updateMusicIndex(newIndex);
-    this.updateProgress(0);
+    AppStorage.setOrCreate('progress', 0);
+    AppStorage.setOrCreate('currentTime', '00:00');
+    this.avSessionController?.setProgressState(0);
 
     this.switchTimer = setTimeout(async () => {
       this.switchTimer = -1;
@@ -429,6 +428,9 @@ export class MediaControlCenter {
   }
 
   public updateProgress(ms: number) {
+    if (AppStorage.get('isLoading') as boolean) {
+      return;
+    }
     if (!this.avSessionController) {
       return;
     }
