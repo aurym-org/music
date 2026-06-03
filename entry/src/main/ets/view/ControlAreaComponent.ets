@@ -17,6 +17,7 @@ import { PreferencesUtil } from '../common/utils/PreferencesUtil';
 import { PlaylistControl } from './PlaylistControl';
 import { SpeedControl } from './SpeedControl';
 import { VolumeControl } from './VolumeControl';
+import { MediaTools } from '../common/utils/mediautils/MediaTools';
 
 const TAG = 'ControlAreaComponent';
 
@@ -120,6 +121,7 @@ export struct ControlAreaComponent {
           .selectedColor($r('app.color.slider_select'))
           .trackColor($r('app.color.slider_track'))
           .onChange((value: number, mode: SliderChangeMode) => {
+            AppStorage.setOrCreate('currentTime', MediaTools.msToCountdownTime(value));
             if (mode === SliderChangeMode.End) {
               MediaControlCenter.getInstance().seek(value);
             }
