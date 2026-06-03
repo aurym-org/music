@@ -114,7 +114,6 @@ export class MediaControlCenter {
     this.setSilentModeFromPrefer();
     this.setVolumeFromPrefer();
     this.setPlayModeFromPrefer();
-    this.setLoading(false);
     this.isInitted = true;
   }
 
