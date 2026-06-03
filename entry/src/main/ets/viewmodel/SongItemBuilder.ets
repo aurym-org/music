@@ -51,7 +51,8 @@ export default class SongItemBuilder {
     this.currentRequest = null;
   }
 
-  async getBiliPlayUrl(bvid: string, cid: number): Promise<BiliPlayUrl> {
+  async getBiliPlayUrl(bvid: string, cid: number): Promise<string> {
+    await PreferencesUtil.getInstance().removeKey(bvid);
     this.cleanHttpRequest();
     const params = new Map<string, string | number>();
     params.set('bvid', bvid);
@@ -84,7 +85,9 @@ export default class SongItemBuilder {
     if (result.code !== 0) {
       throw new Error(`API error: ${result.message}`);
     }
-    return result;
+    const audioUrl: string = result.data.dash.audio[0].baseUrl;
+    this.putAudioUrl(bvid, audioUrl);
+    return audioUrl;
   }
 
   public async build(songItem: SongItem): Promise<void> {
@@ -107,11 +110,8 @@ export default class SongItemBuilder {
     if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
     try {
       if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
-      const playUrlResult = await this.getBiliPlayUrl(bvid, this.songItem.cid);
-      const targetAudioUrl = playUrlResult.data.dash.audio[0].baseUrl;
-
+      const targetAudioUrl = await this.getBiliPlayUrl(bvid, this.songItem.cid);
       if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
-      this.putAudioUrl(bvid, targetAudioUrl);
       this.songItem.src = targetAudioUrl;
       Logger.info(TAG, 'MediaAssetBuilder build realUrl:' + this.songItem.src);
     } catch (error) {

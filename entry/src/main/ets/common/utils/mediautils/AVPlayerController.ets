@@ -11,6 +11,7 @@ import { audio } from '@kit.AudioKit';
 import { MediaTools } from './MediaTools';
 import { AVSessionController } from './AVSessionController';
 import { MediaControlCenter } from './MediaControlCenter';
+import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
 
 const TAG = 'AVPlayerController'
 
@@ -330,8 +331,15 @@ export class AVPlayerController {
     if (!this.avPlayer) {
       return;
     }
-    this.avPlayer.on('error', (error: BusinessError) => {
+    this.avPlayer.on('error', async (error: BusinessError) => {
       Logger.error(TAG, `errorCallback , code is ${error.code} message is ${error.message}`);
+      if (error.code === 5411006) {
+        const songItemBuilder = new SongItemBuilder();
+        const bvid = AppStorage.get<string>('currentBvid')!;
+        const cid = AppStorage.get<number>('currentCid')!;
+        const url = await songItemBuilder.getBiliPlayUrl(bvid, cid);
+        await this.setPlayerUrl(url);
+      }
       AppStorage.setOrCreate('isLoading', false);
     });
   }

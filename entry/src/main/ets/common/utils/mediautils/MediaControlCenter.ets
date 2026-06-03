@@ -58,6 +58,8 @@ export class MediaControlCenter {
       return;
     }
     if (this.switchVersion !== currentVersion) return;
+    AppStorage.setOrCreate('currentBvid', this.songList[this.musicIndex].bvid);
+    AppStorage.setOrCreate('currentCid', this.songList[this.musicIndex].cid);
     await this.avPlayerController.loadSongAssent(this.songList[this.musicIndex].src);
     this.setLoading(false);
   }
@@ -146,6 +148,7 @@ export class MediaControlCenter {
       clearTimeout(this.switchTimer);
     }
     this.updateMusicIndex(newIndex);
+    this.updateProgress(0);
 
     this.switchTimer = setTimeout(async () => {
       this.switchTimer = -1;
@@ -274,9 +277,6 @@ export class MediaControlCenter {
     if (!this.avPlayerController) {
       return;
     }
-    AppStorage.setOrCreate('currentTime', '00:00');
-    AppStorage.setOrCreate('progress', 0);
-    this.avSessionController?.setProgressState(0);
     try {
       await this.avPlayerController.stop();
     } catch (err) {
