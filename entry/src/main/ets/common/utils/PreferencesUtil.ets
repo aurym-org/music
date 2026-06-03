@@ -68,6 +68,14 @@ export class PreferencesUtil {
     return this.preferences.getSync(key, undefined);
   }
 
+  getAll(): preferences.ValueType | undefined {
+    if (!this.preferences) {
+      Logger.info(TAG, 'preferences is undefined');
+      return undefined;
+    }
+    return this.preferences.getAllSync();
+  }
+
   // Remove data by key
   async removeKey(key: string) {
     if (!this.preferences) {

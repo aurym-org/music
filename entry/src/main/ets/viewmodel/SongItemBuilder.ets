@@ -15,7 +15,7 @@ import { wbiSigner } from '../common/utils/BiliWbiUtil';
 
 const TAG = 'SongItemBuilder'
 
-interface CacheData {
+export interface CacheData {
   url: string,
   expire: number
 }
@@ -30,18 +30,18 @@ export default class SongItemBuilder {
       url: raw_url,
       expire: Number(url.URL.parseURL(raw_url).params.get('deadline')) * 1000
     });
-    PreferencesUtil.getInstance().preferencesPut(bvid, data);
+    PreferencesUtil.getInstance().preferencesPut('bvid_'+bvid, data);
   }
 
   async getAudioUrl(bvid: string): Promise<string | null> {
-    const str: string = PreferencesUtil.getInstance().getValue(bvid) as string;
+    const str: string = PreferencesUtil.getInstance().getValue('bvid_'+bvid) as string;
 
     try {
       const cacheData: CacheData = JSON.parse(str);
       if (cacheData.expire > Date.now()) return cacheData.url;
-      await PreferencesUtil.getInstance().removeKey(bvid);
+      await PreferencesUtil.getInstance().removeKey('bvid_'+bvid);
     } catch {
-      await PreferencesUtil.getInstance().removeKey(bvid);
+      await PreferencesUtil.getInstance().removeKey('bvid_'+bvid);
     }
     return null;
   }

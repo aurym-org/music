@@ -6,7 +6,7 @@
 
 import { getFavoriteDetail } from '../../../model/SongListData';
 import { SongItem } from '../../../viewmodel/SongData';
-import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
+import SongItemBuilder, { CacheData } from '../../../viewmodel/SongItemBuilder';
 import { DEFAULT_VOLUME, MusicPlayMode, SILENT_ID, VOLUME_ID, PLAY_MODE_ID } from '../../constants/PlayerConstants';
 import { ContentConstants } from '../../constants/ContentConstants';
 import Logger from '../Logger';
@@ -69,6 +69,23 @@ export class MediaControlCenter {
     return MediaControlCenter.mediaControlFunction;
   }
 
+  private clearExpiredAudio() {
+    const data = PreferencesUtil.getInstance().getAll();
+    if(!data) {
+      return;
+    }
+    const allKeys = Object.keys(data);
+    for (let key of allKeys) {
+      if (!key.startsWith('bvid_')) {
+        continue;
+      }
+      const cacheData: CacheData = JSON.parse(PreferencesUtil.getInstance().getValue(key) as string);
+      if (cacheData.expire < Date.now()) {
+        PreferencesUtil.getInstance().removeKey(key);
+      }
+    }
+  }
+
   private async initAVSession() {
     this.avSessionController = AVSessionController.getInstance();
     await this.avSessionController.initAVSession();
@@ -100,6 +117,7 @@ export class MediaControlCenter {
     if (this.isInitted) {
       return;
     }
+    this.clearExpiredAudio();
     await wbiSigner.fetchAndCacheWbiKeys();
     AppStorage.setOrCreate('switchVersion', this.switchVersion);
     await getFavoriteDetail(ContentConstants.FAV_ID);
