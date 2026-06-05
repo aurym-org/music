@@ -124,8 +124,8 @@ export class AVSessionController {
           artist: artist,
           mediaImage: mediaImage,
           duration: this.getDuration(),
-          avQueueName: 'AudioRendererQueue',
-          avQueueId: 'AudioRendererQueueId',
+          avQueueName: 'Aurym Music',
+          avQueueId: 'AurymMusic',
           avQueueImage: mediaImage
         };
         if (this.AVSession) {
