@@ -67,7 +67,7 @@ export struct SpeedControl {
       }
       .padding({ left: 15, right: 15 })
     }
-    .backgroundColor(Color.White)
+    .backgroundColor($r('sys.color.ohos_id_color_list_card_bg'))
     .padding({
       top: this.currentBreakpoint === BreakpointConstants.BREAKPOINT_SM ? 0 : $r('app.float.list_area_padding_top'),
       bottom: $r('app.float.list_area_padding_bottom')
@@ -80,10 +80,10 @@ export struct SpeedControl {
       SymbolGlyph($r('sys.symbol.video_speed'))
         .fontSize(26)
         .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-        .fontColor([Color.Black])
+        .fontColor([$r('sys.color.ohos_id_color_text_primary')])
       Text($r('app.string.speed_setting'))
         .padding({ left: $r('app.float.play_all_text_padding') })
-        .fontColor(Color.Black)
+        .fontColor($r('sys.color.ohos_id_color_text_primary'))
         .fontSize(new BreakpointType({
           sm: $r('app.float.play_font_sm'),
           md: $r('app.float.play_font_md'),

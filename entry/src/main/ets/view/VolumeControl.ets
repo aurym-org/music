@@ -89,12 +89,11 @@ export struct VolumeControl {
             } else {
               this.isSilentMode = false;
             }
-            // 无需再调用 MediaControlCenter.setVolume，@Watch 会自动处理
           })
       }
       .padding({ left: 15, right: 15 })
     }
-    .backgroundColor(Color.White)
+    .backgroundColor($r('sys.color.ohos_id_color_list_card_bg'))
     .padding({
       top: this.currentBreakpoint === BreakpointConstants.BREAKPOINT_SM ? 0 : $r('app.float.list_area_padding_top'),
       bottom: $r('app.float.list_area_padding_bottom')
@@ -107,10 +106,10 @@ export struct VolumeControl {
       SymbolGlyph(this.getVolumeSymbol())
         .fontSize(26)
         .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-        .fontColor([Color.Black])
+        .fontColor([$r('sys.color.ohos_id_color_text_primary')])
       Text($r('app.string.volume_setting'))
         .padding({ left: $r('app.float.play_all_text_padding') })
-        .fontColor(Color.Black)
+        .fontColor($r('sys.color.ohos_id_color_text_primary'))
         .fontSize(new BreakpointType({
           sm: $r('app.float.play_font_sm'),
           md: $r('app.float.play_font_md'),
