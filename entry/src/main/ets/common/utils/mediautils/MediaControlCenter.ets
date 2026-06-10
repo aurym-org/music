@@ -37,10 +37,6 @@ export class MediaControlCenter {
   private switchVersion: number = 0;
   private lastProgressUpdateTime: number = 0;
 
-  constructor() {
-    this.songItemBuilder = new SongItemBuilder();
-  }
-
   private setLoading(loading: boolean) {
     AppStorage.setOrCreate('isLoading', loading);
   }
