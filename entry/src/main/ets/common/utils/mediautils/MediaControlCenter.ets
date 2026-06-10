@@ -151,6 +151,7 @@ export class MediaControlCenter {
     this.avSessionController.unregisterSessionListener();
     try {
       this.avPlayerController.release();
+      this.isInitted = false;
     } catch (err) {
       Logger.error(TAG, `release failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
     }
@@ -275,7 +276,7 @@ export class MediaControlCenter {
         if (this.musicIndex === 0) {
           preIndex = this.songList.length - 1;
         } else {
-          preIndex = this.musicIndex - 1;
+          preIndex -= 1;
         }
         break;
       case MusicPlayMode.RANDOM:
@@ -389,7 +390,6 @@ export class MediaControlCenter {
     }
     try {
       this.avPlayerController.setSilentMode(isSilentMode);
-      PreferencesUtil.getInstance().preferencesPut(SILENT_ID, isSilentMode);
     } catch (err) {
       Logger.error(TAG,
         `set silentMode failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
