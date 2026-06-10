@@ -97,7 +97,7 @@ export struct PlaylistControl {
               selectIndex: this.selectIndex
             })
           }
-        }, (globalIndex: number) => this.songList[globalIndex]?.bvid ?? globalIndex.toString())
+        }, (globalIndex: number) => this.songList[globalIndex].bvid)
       }
       .height(StyleConstants.FULL_HEIGHT)
       .width(StyleConstants.FULL_WIDTH)
