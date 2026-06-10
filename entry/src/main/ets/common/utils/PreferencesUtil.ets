@@ -13,12 +13,18 @@ const MY_STORE = 'myStore';
 
 export class PreferencesUtil {
   private static preferencesUtil: PreferencesUtil;
-  private context: common.UIAbilityContext | undefined = AppStorage.get('context');
-  preferences: preferences.Preferences | undefined;
+  private _preferences: preferences.Preferences | undefined;
+  private storeName: string = MY_STORE;
 
-  constructor() {
-    let options: preferences.Options = { name: MY_STORE };
-    this.preferences = preferences.getPreferencesSync(this.context, options);
+  private get preferences(): preferences.Preferences {
+    if (!this._preferences) {
+      const context: common.UIAbilityContext | undefined = AppStorage.get('context');
+      if (context) {
+        let options: preferences.Options = { name: this.storeName };
+        this._preferences = preferences.getPreferencesSync(context, options);
+      }
+    }
+    return this._preferences!;
   }
 
   public static getInstance(): PreferencesUtil {
@@ -57,7 +63,7 @@ export class PreferencesUtil {
   }
 
   removePreferencesFromCache(): void {
-    preferences.removePreferencesFromCache(this.context, MY_STORE);
+    preferences.removePreferencesFromCache(AppStorage.get('context'), MY_STORE);
   }
 
   getValue(key: string): preferences.ValueType | undefined {
