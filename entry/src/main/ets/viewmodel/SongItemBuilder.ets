@@ -52,7 +52,7 @@ export default class SongItemBuilder {
   }
 
   async getBiliPlayUrl(bvid: string, cid: number): Promise<string> {
-    await PreferencesUtil.getInstance().removeKey(bvid);
+    await PreferencesUtil.getInstance().removeKey('bvid_'+bvid);
     this.cleanHttpRequest();
     const params = new Map<string, string | number>();
     params.set('bvid', bvid);

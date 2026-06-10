@@ -71,7 +71,7 @@ export class MediaControlCenter {
 
   private clearExpiredAudio() {
     const data = PreferencesUtil.getInstance().getAll();
-    if(!data) {
+    if (!data) {
       return;
     }
     const allKeys = Object.keys(data);

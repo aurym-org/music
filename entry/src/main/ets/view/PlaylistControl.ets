@@ -63,7 +63,7 @@ export struct PlaylistControl {
             })
               .reuseId(item.id.toString());
           }
-        }, (item: SongItem, index: number) => item.toString() + index.toString())
+        }, (item: SongItem, index: number) => item.bvid)
       }
       .height(StyleConstants.FULL_HEIGHT)
       .width(StyleConstants.FULL_WIDTH)

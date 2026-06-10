@@ -108,7 +108,7 @@ export struct ControlAreaComponent {
               this.volume = 0;
             } else {
               let preVolume: number = PreferencesUtil.getInstance().getValue(VOLUME_ID) as number;
-              this.volume = preVolume ? preVolume : 10;
+              this.volume = preVolume ?? 10;
             }
           })
 

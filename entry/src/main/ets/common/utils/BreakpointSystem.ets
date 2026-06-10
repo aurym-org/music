@@ -34,10 +34,9 @@ export class BreakpointType<T> {
 
 export class BreakpointSystem {
   private currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
-  context: UIContext = AppStorage.get("uiContext") as UIContext;
-  private smListener: mediaquery.MediaQueryListener = this.context.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_SM);
-  private mdListener: mediaquery.MediaQueryListener = this.context.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_MD);
-  private lgListener: mediaquery.MediaQueryListener = this.context.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_LG);
+  private smListener: mediaquery.MediaQueryListener | undefined = undefined;
+  private mdListener: mediaquery.MediaQueryListener | undefined = undefined;
+  private lgListener: mediaquery.MediaQueryListener | undefined = undefined;
 
   private updateCurrentBreakpoint(breakpoint: string): void {
     if (this.currentBreakpoint !== breakpoint) {
@@ -63,17 +62,27 @@ export class BreakpointSystem {
   }
 
   public register(): void {
-    this.smListener = this.context.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_SM);
+    const uiContext: UIContext | undefined = AppStorage.get('uiContext') as UIContext | undefined;
+    if (!uiContext) {
+      return;
+    }
+    this.smListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_SM);
     this.smListener.on('change', this.isBreakpointSM);
-    this.mdListener = this.context.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_MD);
+    this.mdListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_MD);
     this.mdListener.on('change', this.isBreakpointMD);
-    this.lgListener = this.context.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_LG);
+    this.lgListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_LG);
     this.lgListener.on('change', this.isBreakpointLG);
   }
 
   public unregister(): void {
-    this.smListener.off('change', this.isBreakpointSM);
-    this.mdListener.off('change', this.isBreakpointMD);
-    this.lgListener.off('change', this.isBreakpointLG);
+    if (this.smListener) {
+      this.smListener.off('change', this.isBreakpointSM);
+    }
+    if (this.mdListener) {
+      this.mdListener.off('change', this.isBreakpointMD);
+    }
+    if (this.lgListener) {
+      this.lgListener.off('change', this.isBreakpointLG);
+    }
   }
 }

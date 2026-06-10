@@ -166,7 +166,7 @@ export class AVSessionController {
       Logger.error(TAG, 'mediaControlFunction is undefined in onPlay');
       return;
     }
-    this.mediaControlCenter.play()
+    this.mediaControlCenter.play();
   }
   // Set pause listening
   private onPause: () => void = () => {
@@ -190,7 +190,7 @@ export class AVSessionController {
   private onPlayPrevious: () => void = () => {
     Logger.info(TAG, `on playPrevious , do playPrevious task`);
     if (!this.mediaControlCenter) {
-      Logger.error(TAG, 'mediaControlFunction is undefined in onPlayPrevious')
+      Logger.error(TAG, 'mediaControlFunction is undefined in onPlayPrevious');
       return;
     }
     this.mediaControlCenter.playPrevious();

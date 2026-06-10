@@ -23,8 +23,21 @@ class WbiSigner {
   private imgKey: string = '';
   private subKey: string = '';
   private mixinKey: string = '';
+  private fetchPromise: Promise<void> | null = null;
 
   async fetchAndCacheWbiKeys(): Promise<void> {
+    if (this.fetchPromise) {
+      return this.fetchPromise;
+    }
+    this.fetchPromise = this.doFetchAndCache();
+    try {
+      await this.fetchPromise;
+    } finally {
+      this.fetchPromise = null;
+    }
+  }
+
+  private async doFetchAndCache(): Promise<void> {
     try {
       const cached = await this.getCachedKeys();
       const now = Date.now();

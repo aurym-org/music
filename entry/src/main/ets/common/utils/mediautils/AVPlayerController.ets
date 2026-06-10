@@ -68,10 +68,6 @@ export class AVPlayerController {
       'Referer': 'https://www.bilibili.com/',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     };
-    let mediaSource: media.MediaSource = media.createMediaSourceWithUrl(url, headers);
-    let playStrategy : media.PlaybackStrategy = {
-      preferredBufferDuration: 1,
-    };
     if (AppStorage.get<number>('switchVersion') !== currentVersion) {
       if (this.preparedReject) {
         this.preparedReject(new Error('setPlayerUrl cancelled due to version change'));
@@ -87,6 +83,10 @@ export class AVPlayerController {
       }
       return;
     }
+    let mediaSource: media.MediaSource = media.createMediaSourceWithUrl(url, headers);
+    let playStrategy: media.PlaybackStrategy = {
+      preferredBufferDuration: 1,
+    };
     await this.avPlayer!.setMediaSource(mediaSource, playStrategy);
   }
 
@@ -272,7 +272,7 @@ export class AVPlayerController {
     this.avPlayer.off('audioOutputDeviceChangeWithInfo');
     this.avPlayer.release();
     this.avPlayer = undefined;
-    Logger.error(TAG, 'avPlayer release success');
+    Logger.info(TAG, 'avPlayer release success');
   }
   // [End release]
 
@@ -337,6 +337,7 @@ export class AVPlayerController {
         const bvid = AppStorage.get<string>('currentBvid')!;
         const cid = AppStorage.get<number>('currentCid')!;
         const url = await songItemBuilder.getBiliPlayUrl(bvid, cid);
+        this.waitPlay = true;
         await this.setPlayerUrl(url);
       }
       AppStorage.setOrCreate('isLoading', false);
