@@ -10,7 +10,6 @@ import { StyleConstants } from '../common/constants/StyleConstants';
 import { BreakpointType } from '../common/utils/BreakpointSystem';
 import Logger from '../common/utils/Logger';
 import { SongItem } from '../viewmodel/SongData';
-import { SongDataSource } from '../viewmodel/SongDataSource';
 import { MediaControlCenter } from '../common/utils/mediautils/MediaControlCenter';
 
 const TAG = 'PlaylistControl';
@@ -22,7 +21,25 @@ export struct PlaylistControl {
   @StorageProp('selectIndex') selectIndex: number = 0;
   @StorageProp('isPlay') isPlay: boolean = false;
   @State isShowSheet: boolean = false;
+  @State searchKeyword: string = '';
+  @State filteredIndices: number[] = [];
   private scroller: Scroller = new Scroller();
+
+  private applyFilter(): void {
+    const keyword = this.searchKeyword.toLowerCase().trim();
+    if (!keyword) {
+      this.filteredIndices = this.songList.map((_, i) => i);
+      return;
+    }
+    const result: number[] = [];
+    this.songList.forEach((item, i) => {
+      if (item.title.toLowerCase().includes(keyword) ||
+          item.singer.toLowerCase().includes(keyword)) {
+        result.push(i);
+      }
+    });
+    this.filteredIndices = result;
+  }
 
   build() {
     SymbolGlyph($r('sys.symbol.music_note_list'))
@@ -40,7 +57,11 @@ export struct PlaylistControl {
         preferType: SheetType.CENTER,
         onWillAppear: () => {
           Logger.info(TAG, 'playlist sheet appearing');
-          this.scroller.scrollToIndex(this.selectIndex, false, ScrollAlign.CENTER);
+          this.searchKeyword = '';
+          this.applyFilter();
+          setTimeout(() => {
+            this.scroller.scrollToIndex(this.selectIndex, false, ScrollAlign.CENTER);
+          }, 100);
         },
         onWillDismiss: () => {
           this.isShowSheet = false;
@@ -52,23 +73,36 @@ export struct PlaylistControl {
   playlistSheet() {
     Column() {
       this.playListTitle()
+      Search({ placeholder: '搜索歌曲', value: this.searchKeyword })
+        .textFont({ size: 14 })
+        .height(36)
+        .borderRadius(8)
+        .margin({
+          top: $r('app.float.list_area_margin_top'),
+          left: $r('app.float.list_item_padding'),
+          right: $r('app.float.list_item_padding'),
+          bottom: $r('app.float.list_item_padding')
+        })
+        .onChange((value: string) => {
+          this.searchKeyword = value;
+          this.applyFilter();
+        })
       List({ scroller: this.scroller }) {
-        LazyForEach(new SongDataSource(this.songList), (item: SongItem, index: number) => {
+        ForEach(this.filteredIndices, (globalIndex: number) => {
           ListItem() {
             PlayListContainer({
-              item: item,
-              index: index,
+              item: this.songList[globalIndex],
+              index: globalIndex,
               isPlay: this.isPlay,
               selectIndex: this.selectIndex
             })
-              .reuseId(item.id.toString());
           }
-        }, (item: SongItem) => item.bvid)
+        }, (globalIndex: number) => this.songList[globalIndex]?.bvid ?? globalIndex.toString())
       }
       .height(StyleConstants.FULL_HEIGHT)
       .width(StyleConstants.FULL_WIDTH)
       .backgroundColor($r('sys.color.ohos_id_color_list_card_bg'))
-      .margin({ top: $r('app.float.list_area_margin_top') })
+      .margin({ top: $r('app.float.list_item_padding') })
       .lanes(this.currentBreakpoint === BreakpointConstants.BREAKPOINT_LG ?
         ContentConstants.COL_TWO : ContentConstants.COL_ONE)
       .layoutWeight(1)
@@ -118,14 +152,13 @@ export struct PlaylistControl {
   }
 }
 
-@Reusable
 @Component
 struct PlayListContainer {
   @Prop isPlay: boolean = false;
   @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
   @Prop selectIndex: number = 0;
-  item: SongItem | undefined = undefined;
-  index: number | undefined = undefined;
+  @Prop item: SongItem = new SongItem();
+  @Prop index: number = 0;
 
   build() {
     Column() {
@@ -136,7 +169,7 @@ struct PlayListContainer {
             .height($r("app.float.wave_height"))
         }
         Column() {
-          Text(this.item!.title)
+          Text(this.item.title)
             .fontColor(this.selectIndex === this.index ? $r('sys.color.ohos_id_color_badge_red') : $r('sys.color.ohos_id_color_text_primary'))
             .fontSize(new BreakpointType({
               sm: $r('app.float.item_font_sm'),
@@ -147,7 +180,7 @@ struct PlayListContainer {
             .maxLines(2)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           Row() {
-            Text(this.item!.singer)
+            Text(this.item.singer)
               .opacity($r('app.float.singer_opacity'))
               .fontColor(this.selectIndex === this.index ? $r('sys.color.ohos_id_color_badge_red') : $r('sys.color.ohos_id_color_text_primary'))
               .fontSize(new BreakpointType({
