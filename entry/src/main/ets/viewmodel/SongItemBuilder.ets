@@ -116,6 +116,7 @@ export default class SongItemBuilder {
       Logger.info(TAG, 'MediaAssetBuilder build realUrl:' + this.songItem.src);
     } catch (error) {
       Logger.error(TAG, `MediaAssetBuilder build error: ${error.message}`);
+      AppStorage.setOrCreate('errorMessage', `加载歌曲失败: ${error.message}`);
     }
     return;
   }

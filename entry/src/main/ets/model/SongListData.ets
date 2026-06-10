@@ -165,6 +165,7 @@ async function getFavoriteDetail(mediaId: number, pageSize: number = 40): Promis
     Logger.info(TAG, `并发获取完毕`);
   } catch (error) {
     Logger.error(TAG, `获取收藏夹失败:`, error);
+    AppStorage.setOrCreate('errorMessage', `获取收藏夹数据失败: ${error.message}`);
     throw new Error(`获取收藏夹数据失败: ${error.message}`);
   }
 }

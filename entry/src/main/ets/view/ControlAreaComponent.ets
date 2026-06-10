@@ -6,7 +6,7 @@
 
 import { PromptAction } from '@kit.ArkUI';
 import { BreakpointConstants } from '../common/constants/BreakpointConstants';
-import { MusicPlayMode, PlayerConstants, PlayModeSwitchList, VOLUME_ID, PLAY_MODE_ID } from '../common/constants/PlayerConstants';
+import { ERROR_MESSAGE, MusicPlayMode, PlayerConstants, PlayModeSwitchList, VOLUME_ID, PLAY_MODE_ID } from '../common/constants/PlayerConstants';
 import { StyleConstants } from '../common/constants/StyleConstants';
 import { BreakpointType } from '../common/utils/BreakpointSystem';
 import Logger from '../common/utils/Logger';
@@ -35,6 +35,7 @@ export struct ControlAreaComponent {
   @StorageProp('selectIndex') selectIndex: number = 0;
   @StorageLink('isSilentMode') @Watch('isSilentModeChange') isSilentMode: boolean = false;
   @StorageLink('isLoading') isLoading: boolean = true;
+  @StorageLink(ERROR_MESSAGE) @Watch('onErrorMessage') errorMessage: string = '';
   @StorageLink('currentVolume') @Watch('currentVolumeChange') volume: number = 0;
   private resourceConversion: ResourceConversion = new ResourceConversion();
   uiContext: UIContext = this.getUIContext();
@@ -48,6 +49,13 @@ export struct ControlAreaComponent {
   currentVolumeChange() {
     Logger.info(TAG, `volume is change, current volume is ${this.volume}`);
     MediaControlCenter.getInstance().setVolume(this.volume);
+  }
+
+  onErrorMessage() {
+    if (this.errorMessage) {
+      this.promptAction.openToast({ message: this.errorMessage, duration: 3000 });
+      AppStorage.setOrCreate(ERROR_MESSAGE, '');
+    }
   }
 
   switchPlayMode() {

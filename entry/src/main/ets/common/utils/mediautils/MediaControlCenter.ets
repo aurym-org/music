@@ -7,7 +7,7 @@
 import { getFavoriteDetail } from '../../../model/SongListData';
 import { SongItem } from '../../../viewmodel/SongData';
 import SongItemBuilder, { CacheData } from '../../../viewmodel/SongItemBuilder';
-import { DEFAULT_VOLUME, MusicPlayMode, SILENT_ID, VOLUME_ID, PLAY_MODE_ID } from '../../constants/PlayerConstants';
+import { DEFAULT_VOLUME, ERROR_MESSAGE, MusicPlayMode, SILENT_ID, VOLUME_ID, PLAY_MODE_ID } from '../../constants/PlayerConstants';
 import { ContentConstants } from '../../constants/ContentConstants';
 import Logger from '../Logger';
 import { AVSessionController } from './AVSessionController';
@@ -43,6 +43,10 @@ export class MediaControlCenter {
 
   // [Start loadSongAssent]
   private async loadSongAssent() {
+    if (!this.songList || this.songList.length === 0 || !this.songList[this.musicIndex]) {
+      Logger.error(TAG, 'songList is empty or invalid index');
+      return;
+    }
     const currentVersion = this.switchVersion;
     if (this.switchVersion !== currentVersion) return;
     await this.songItemBuilder.build(this.songList[this.musicIndex]);
@@ -118,6 +122,10 @@ export class MediaControlCenter {
     AppStorage.setOrCreate('switchVersion', this.switchVersion);
     await getFavoriteDetail(ContentConstants.FAV_ID);
     this.songList = AppStorage.get('songList')!;
+    if (!this.songList || this.songList.length === 0) {
+      AppStorage.setOrCreate(ERROR_MESSAGE, '歌单为空，请检查网络连接后重试');
+      return;
+    }
     await Promise.all([
       this.initAvplayer(),
       this.initAVSession(),

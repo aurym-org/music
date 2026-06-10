@@ -151,9 +151,8 @@ export class AVPlayerController {
       Logger.info(TAG, 'avPlayer is undefined')
       return;
     }
-    await this.avPlayer.prepare().then(() => {
-      Logger.info(TAG, `prepare success , curState is ${this.avPlayer?.state}`);
-    });
+    await this.avPlayer.prepare();
+    Logger.info(TAG, `prepare success , curState is ${this.avPlayer?.state}`);
   }
   // [End prepare]
 
