@@ -267,10 +267,7 @@ export class MediaControlCenter {
         if (this.musicIndex === 0) {
           preIndex = this.songList.length - 1;
         } else {
-          preIndex -= 1;
-          if (preIndex < 0) {
-            preIndex = this.songList.length - 1
-          }
+          preIndex = this.musicIndex - 1;
         }
         break;
       case MusicPlayMode.RANDOM:
