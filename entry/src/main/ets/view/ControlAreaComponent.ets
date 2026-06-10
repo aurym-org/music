@@ -186,7 +186,7 @@ export struct ControlAreaComponent {
             .color(Color.White)
             .opacity(0.86)
         } else {
-          Image(this.isPlay ? $r('app.media.ic_public_play') : $r('app.media.ic_public_pause'))
+          Image(this.isPlay ? $r('app.media.ic_public_pause') : $r('app.media.ic_public_play'))
             .controlImageBuilder()
             .width(new BreakpointType({
               sm: $r('app.float.image_play_width'),
