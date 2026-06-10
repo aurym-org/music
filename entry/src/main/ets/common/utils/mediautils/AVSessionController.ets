@@ -51,7 +51,7 @@ export class AVSessionController {
     this.setLaunchAbility();
     this.setListenerForMesFromController();
     if (this.musicIndex !== undefined) {
-      this.getAndUpdateFavoriteState(this.musicIndex.toString());
+      this.getAndUpdateFavoriteState(this.songList[this.musicIndex].bvid);
     }
   }
   // [End initAVSession]
@@ -119,7 +119,7 @@ export class AVSessionController {
           artist = FirstSongSinger;
         }
         let metadata: avSession.AVMetadata = {
-          assetId: `${this.musicIndex}`,
+          assetId: this.songList[this.musicIndex].bvid,
           title: title,
           artist: artist,
           mediaImage: mediaImage,

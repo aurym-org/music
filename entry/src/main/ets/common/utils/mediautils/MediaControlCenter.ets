@@ -474,6 +474,6 @@ export class MediaControlCenter {
       return;
     }
     this.avSessionController.setAVMetadata();
-    this.avSessionController.getAndUpdateFavoriteState(this.musicIndex.toString());
+    this.avSessionController.getAndUpdateFavoriteState(this.songList[this.musicIndex].bvid);
   }
 }

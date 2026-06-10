@@ -99,7 +99,7 @@ export struct MusicInfoComponent {
         .opacity(0.86)
         .onClick(() => {
           this.isFavorite = !this.isFavorite;
-          AVSessionController.getInstance().updateFavoriteState(this.selectIndex.toString(), this.isFavorite)
+          AVSessionController.getInstance().updateFavoriteState(this.songList[this.selectIndex].bvid, this.isFavorite)
         })
     }
     .width('100%')
