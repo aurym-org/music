@@ -9,7 +9,7 @@ import { avSession } from '@kit.AVSessionKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { SongItem } from '../../../viewmodel/SongData';
 import Logger from '../Logger';
-import { FirstSongSinger, FirstSongTitle, MusicPlayMode } from '../../constants/PlayerConstants';
+import { MusicPlayMode } from '../../constants/PlayerConstants';
 import { PreferencesUtil } from '../PreferencesUtil';
 import { MediaControlCenter } from './MediaControlCenter';
 
@@ -107,17 +107,13 @@ export class AVSessionController {
         Logger.info(TAG, 'getPixelMapFromResource success' + JSON.stringify(mediaImage));
         let title = '';
         let artist = '';
-        if (this.context) {
-          if (this.songList[this.musicIndex].title !== undefined) {
-            title = this.songList[this.musicIndex].title;
-          }
-          if (this.songList[this.musicIndex].singer !== undefined) {
-            artist = this.songList[this.musicIndex].singer;
-          }
-        } else {
-          title = FirstSongTitle;
-          artist = FirstSongSinger;
+        if (this.songList[this.musicIndex].title !== undefined) {
+          title = this.songList[this.musicIndex].title;
         }
+        if (this.songList[this.musicIndex].singer !== undefined) {
+          artist = this.songList[this.musicIndex].singer;
+        }
+
         let metadata: avSession.AVMetadata = {
           assetId: this.songList[this.musicIndex].bvid,
           title: title,

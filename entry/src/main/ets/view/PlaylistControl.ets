@@ -16,7 +16,7 @@ const TAG = 'PlaylistControl';
 
 @Component
 export struct PlaylistControl {
-  @StorageProp('songList') songList: SongItem[] = [];
+  @StorageProp('songList') @Watch('onSongListChange') songList: SongItem[] = [];
   @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
   @StorageProp('selectIndex') selectIndex: number = 0;
   @StorageProp('isPlay') isPlay: boolean = false;
@@ -24,6 +24,10 @@ export struct PlaylistControl {
   @State searchKeyword: string = '';
   @State filteredIndices: number[] = [];
   private scroller: Scroller = new Scroller();
+
+  private onSongListChange(): void {
+    this.applyFilter();
+  }
 
   private applyFilter(): void {
     const keyword = this.searchKeyword.toLowerCase().trim();
@@ -57,14 +61,12 @@ export struct PlaylistControl {
         preferType: SheetType.CENTER,
         onWillAppear: () => {
           Logger.info(TAG, 'playlist sheet appearing');
-          this.searchKeyword = '';
-          this.applyFilter();
-          setTimeout(() => {
-            this.scroller.scrollToIndex(this.selectIndex, false, ScrollAlign.CENTER);
-          }, 100);
+          this.scroller.scrollToIndex(this.selectIndex, false, ScrollAlign.CENTER);
         },
         onWillDismiss: () => {
           this.isShowSheet = false;
+          this.searchKeyword = '';
+          this.applyFilter();
         }
       })
   }

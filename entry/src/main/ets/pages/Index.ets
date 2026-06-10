@@ -33,7 +33,7 @@ struct Index {
 
   async aboutToAppear() {
     try {
-      MediaControlCenter.getInstance().init();
+      await MediaControlCenter.getInstance().init();
       this.breakpointSystem.register();
     } catch (error) {
       Logger.error(TAG, `getInstance failed: ${error}`)

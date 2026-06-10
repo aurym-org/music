@@ -99,14 +99,6 @@ export enum AudioPlayerState {
   UNKNOWN
 }
 
-export const FirstSongTitle = 'Dream It Possible'
-
-export const FirstSongSinger = 'Delacey'
-
-// [Start SECOND_BUFFER_WALK]
-export const SECOND_BUFFER_WALK = (48000 * 2 * 16) / 8;
-// [End SECOND_BUFFER_WALK]
-
 export const SELECT_MUSIC_INDEX = 'selectIndex';
 
 export const TOTAL_MS_NUMBER_NUMBER_DURATION = 'totalMsDuration';

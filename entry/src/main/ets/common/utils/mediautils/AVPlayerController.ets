@@ -107,7 +107,7 @@ export class AVPlayerController {
       AppStorage.setOrCreate('isLoading', false);
       return;
     }
-    Logger.info(TAG, `set avPlayer url is ${this.avPlayer.url}, curState is ${this.avPlayer?.state}`);
+    Logger.info(TAG, `set avPlayer url is ${this.avPlayer.url}, curState is ${this.avPlayer.state}`);
   }
   // [End loadSongAssent]
 
@@ -138,9 +138,9 @@ export class AVPlayerController {
       return;
     }
     this.avPlayer = await media.createAVPlayer();
-    Logger.info(TAG, `createAVPlayer success, curState is ${this.avPlayer?.state}`);
+    Logger.info(TAG, `createAVPlayer success, curState is ${this.avPlayer.state}`);
     this.setAVPlayerCallbacks();
-    Logger.info(TAG, `setAVPlayerCallbacks success, curState is ${this.avPlayer?.state}`);
+    Logger.info(TAG, `setAVPlayerCallbacks success, curState is ${this.avPlayer.state}`);
   }
   // [End initAVPlayer]
 
@@ -152,7 +152,7 @@ export class AVPlayerController {
       return;
     }
     await this.avPlayer.prepare();
-    Logger.info(TAG, `prepare success , curState is ${this.avPlayer?.state}`);
+    Logger.info(TAG, `prepare success , curState is ${this.avPlayer.state}`);
   }
   // [End prepare]
 
@@ -206,7 +206,7 @@ export class AVPlayerController {
     this.waitPlay = false;
     Logger.info(TAG, 'play success');
     this.updateIsPlay(true);
-    Logger.info(TAG, `curState is ${this.avPlayer?.state}`);
+    Logger.info(TAG, `curState is ${this.avPlayer.state}`);
   }
   // [End play]
 
@@ -369,11 +369,11 @@ export class AVPlayerController {
           AppStorage.setOrCreate('totalMsTime', this.avPlayer?.duration!);
           AppStorage.setOrCreate('progressMax', this.avPlayer?.duration!);
           AppStorage.setOrCreate('isLoading', false);
-          this.avSessionController?.setAVMetadata();
           if (!this.avSessionController) {
             Logger.error(TAG, 'avSessionController is undefined');
             return;
           }
+          this.avSessionController.setAVMetadata();
           if (this.waitPlay) {
             this.play();
           }
