@@ -33,7 +33,6 @@ export class MediaControlCenter {
   private audioSessionManager: audio.AudioSessionManager | undefined = undefined;
   private isInitted = false;
   private static mediaControlFunction: MediaControlCenter;
-  private switchTimer: number = -1;
   private switchVersion: number = 0;
   private lastProgressUpdateTime: number = 0;
 
@@ -163,23 +162,16 @@ export class MediaControlCenter {
     AppStorage.setOrCreate('switchVersion', this.switchVersion);
     const currentVersion = this.switchVersion;
 
-    if (this.switchTimer !== -1) {
-      clearTimeout(this.switchTimer);
-    }
     this.updateMusicIndex(newIndex);
     AppStorage.setOrCreate('progress', 0);
     AppStorage.setOrCreate('currentTime', '00:00');
     this.avSessionController?.setProgressState(0);
 
-    this.switchTimer = setTimeout(async () => {
-      this.switchTimer = -1;
-      if (this.switchVersion !== currentVersion) return;
-      await this.stop();
-      if (this.switchVersion !== currentVersion) return;
-      await this.loadSongAssent();
-      if (this.switchVersion !== currentVersion) return;
-      await this.play();
-    }, ContentConstants.DEBOUNCE_DELAY);
+    await this.stop();
+    if (this.switchVersion !== currentVersion) return;
+    await this.loadSongAssent();
+    if (this.switchVersion !== currentVersion) return;
+    await this.play();
   }
 
   // [Start StartContinuousTask]

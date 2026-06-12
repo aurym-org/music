@@ -77,9 +77,4 @@ export class ContentConstants {
    * Id of BiliBili upper.
    */
   static readonly UP_MID: number = 44919953;
-
-  /**
-   * Debounce delay timestamp.
-   */
-  static readonly DEBOUNCE_DELAY: number = 300;
 }
