@@ -193,9 +193,9 @@ export class MediaControlCenter {
       Logger.error(TAG, 'avSessionController is undefined');
       return;
     }
-    this.updateIsPlay(true);
     try {
-      this.avPlayerController.play();
+      await this.avPlayerController.play();
+      this.updateIsPlay(true);
     } catch (err) {
       Logger.error(TAG, `play failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
     }
@@ -327,7 +327,8 @@ export class MediaControlCenter {
       Logger.error(TAG, `avSessionController is undefined`);
       return;
     }
-    this.avSessionController.setPlayState(isPlay);
+    const progress = AppStorage.get<number>('progress') ?? 0;
+    this.avSessionController.setPlayState(isPlay, progress);
   }
 
   public getVolume(): number {

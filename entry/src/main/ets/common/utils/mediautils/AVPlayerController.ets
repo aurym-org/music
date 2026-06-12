@@ -479,6 +479,7 @@ export class AVPlayerController {
     if (!this.avSessionController) {
       return;
     }
-    this.avSessionController.setPlayState(isPlay);
+    const progress = AppStorage.get<number>('progress') ?? 0;
+    this.avSessionController.setPlayState(isPlay, progress);
   }
 }

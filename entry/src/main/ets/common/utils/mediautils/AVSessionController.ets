@@ -283,15 +283,22 @@ export class AVSessionController {
     }
   }
 
-  // Set play state.
-  public setPlayState(isPlay: boolean) {
+  // Set play state. Sets position atomically to prevent AVSession time extrapolation.
+  public setPlayState(isPlay: boolean, positionMs?: number) {
     if (!this.AVSession) {
       Logger.error(TAG, 'AVSession is undefined');
       return;
     }
-    this.AVSession.setAVPlaybackState({
+    const playbackState: avSession.AVPlaybackState = {
       state: isPlay ? avSession.PlaybackState.PLAYBACK_STATE_PLAY : avSession.PlaybackState.PLAYBACK_STATE_PAUSE,
-    }, (err: BusinessError) => {
+    };
+    if (positionMs !== undefined) {
+      playbackState.position = {
+        elapsedTime: positionMs,
+        updateTime: new Date().getTime()
+      };
+    }
+    this.AVSession.setAVPlaybackState(playbackState, (err: BusinessError) => {
       if (err) {
         Logger.error(TAG, `setPlayState BusinessError: code: ${err.code}, message: ${err.message}`);
       } else {
