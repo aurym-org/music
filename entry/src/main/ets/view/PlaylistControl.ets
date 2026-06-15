@@ -33,16 +33,17 @@ export struct PlaylistControl {
     const keyword = this.searchKeyword.toLowerCase().trim();
     if (!keyword) {
       this.filteredIndices = this.songList.map((_, i) => i);
-      return;
+    } else {
+      const result: number[] = [];
+      this.songList.forEach((item, i) => {
+        if (item.title.toLowerCase().includes(keyword) ||
+            item.singer.toLowerCase().includes(keyword)) {
+          result.push(i);
+        }
+      });
+      this.filteredIndices = result;
     }
-    const result: number[] = [];
-    this.songList.forEach((item, i) => {
-      if (item.title.toLowerCase().includes(keyword) ||
-          item.singer.toLowerCase().includes(keyword)) {
-        result.push(i);
-      }
-    });
-    this.filteredIndices = result;
+    this.scroller.scrollToIndex(0);
   }
 
   build() {
