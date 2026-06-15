@@ -12,6 +12,8 @@ import { MediaTools } from './MediaTools';
 import { AVSessionController } from './AVSessionController';
 import { MediaControlCenter } from './MediaControlCenter';
 import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
+import { PreferencesUtil } from '../PreferencesUtil';
+import { ERROR_MESSAGE } from '../../constants/PlayerConstants';
 
 const TAG = 'AVPlayerController'
 
@@ -20,6 +22,8 @@ export class AVPlayerController {
   private avSessionController: AVSessionController | undefined = undefined;
   private currentState: media.AVPlayerState = 'idle';
   private waitPlay: boolean = false;
+  private urlRetryCount: number = 0;
+  private static readonly MAX_URL_RETRY: number = 2;
   static avPlayerController: AVPlayerController | undefined;
   private preparedResolve?: () => void;
   private preparedReject?: (error: Error) => void;
@@ -332,13 +336,20 @@ export class AVPlayerController {
     }
     this.avPlayer.on('error', async (error: BusinessError) => {
       Logger.error(TAG, `errorCallback , code is ${error.code} message is ${error.message}`);
-      if (error.code === 5411006) {
-        const songItemBuilder = new SongItemBuilder();
-        const bvid = AppStorage.get<string>('currentBvid')!;
-        const cid = AppStorage.get<number>('currentCid')!;
-        const url = await songItemBuilder.getBiliPlayUrl(bvid, cid);
-        this.waitPlay = true;
-        await this.setPlayerUrl(url);
+      const bvid = AppStorage.get<string>('currentBvid');
+      const cid = AppStorage.get<number>('currentCid');
+      if (bvid && cid !== undefined && this.urlRetryCount < AVPlayerController.MAX_URL_RETRY) {
+        this.urlRetryCount++;
+        try {
+          const songItemBuilder = new SongItemBuilder();
+          const url = await songItemBuilder.getBiliPlayUrl(bvid, cid);
+          this.waitPlay = true;
+          await this.setPlayerUrl(url);
+        } catch (e) {
+          Logger.error(TAG, `URL retry failed: ${e.message}`);
+        }
+      } else {
+        AppStorage.setOrCreate(ERROR_MESSAGE, '播放失败，请检查网络后重试');
       }
       AppStorage.setOrCreate('isLoading', false);
     });
@@ -385,6 +396,7 @@ export class AVPlayerController {
         // [StartExclude stateChangeCallback]
         case 'playing':
           Logger.info(TAG, `state playing called , resson is ${reason}`);
+          this.urlRetryCount = 0;
           break;
         case 'paused':
           Logger.info(TAG, `state paused called , resson is ${reason}`);

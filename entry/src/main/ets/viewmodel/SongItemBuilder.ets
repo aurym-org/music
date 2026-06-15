@@ -38,7 +38,7 @@ export default class SongItemBuilder {
 
     try {
       const cacheData: CacheData = JSON.parse(str);
-      if (cacheData.expire > Date.now()) return cacheData.url;
+      if (cacheData.expire - 5 * 60 * 1000 > Date.now()) return cacheData.url;
       await PreferencesUtil.getInstance().removeKey('bvid_'+bvid);
     } catch {
       await PreferencesUtil.getInstance().removeKey('bvid_'+bvid);
