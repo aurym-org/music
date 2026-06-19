@@ -62,12 +62,14 @@ export struct PlaylistControl {
         preferType: SheetType.CENTER,
         onWillAppear: () => {
           Logger.info(TAG, 'playlist sheet appearing');
-          this.scroller.scrollToIndex(this.selectIndex, false, ScrollAlign.CENTER);
+          this.searchKeyword = '';
+          this.applyFilter();
+          setTimeout(() => {
+            this.scroller.scrollToIndex(this.selectIndex, false, ScrollAlign.CENTER);
+          }, 0);
         },
         onWillDismiss: () => {
           this.isShowSheet = false;
-          this.searchKeyword = '';
-          this.applyFilter();
         }
       })
   }
