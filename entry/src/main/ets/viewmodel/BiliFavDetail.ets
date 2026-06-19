@@ -23,6 +23,7 @@ interface info {
 export interface BiliFavDetailItemModel {
   id: number,
   title: string,
+  intro: string,
   upper: upper,
   cover: string,
   bvid: string,

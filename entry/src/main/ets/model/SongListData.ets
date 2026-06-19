@@ -10,6 +10,7 @@ import Logger from "../common/utils/Logger";
 import { BiliFavDetail, BiliFavDetailItemModel } from "../viewmodel/BiliFavDetail";
 import { ContentConstants } from "../common/constants/ContentConstants";
 import { wbiSigner } from "../common/utils/BiliWbiUtil";
+import { BiliMusicParser } from "../common/utils/BiliMusicParser";
 
 interface PageResult {
   page: number,
@@ -17,12 +18,14 @@ interface PageResult {
 }
 
 const TAG = 'SongListData';
+const parser = new BiliMusicParser();
 
 function convertToSongItem(item: BiliFavDetailItemModel, index: number): SongItem {
+  const info = parser.parse(item.title, item.intro);
   return {
     id: item.id,
-    title: item.title,
-    singer: item.upper.name,
+    title: info.title? info.title : item.title,
+    singer: info.singer ? info.singer : item.upper.name,
     label: item.cover + '@.webp',
     src: '',
     index: index,
