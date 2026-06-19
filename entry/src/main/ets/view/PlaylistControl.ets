@@ -107,7 +107,6 @@ export struct PlaylistControl {
       .height(StyleConstants.FULL_HEIGHT)
       .width(StyleConstants.FULL_WIDTH)
       .backgroundColor($r('sys.color.ohos_id_color_list_card_bg'))
-      .margin({ top: $r('app.float.list_item_padding') })
       .lanes(this.currentBreakpoint === BreakpointConstants.BREAKPOINT_LG ?
         ContentConstants.COL_TWO : ContentConstants.COL_ONE)
       .layoutWeight(1)
