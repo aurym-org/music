@@ -5,11 +5,13 @@
  */
 
 import { insightIntent, InsightIntentExecutor } from '@kit.AbilityKit';
+import { HiAppEventManager } from '../common/utils/HiAppEventManager';
 import { MediaControlCenter } from '../common/utils/mediautils/MediaControlCenter';
 
 export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
   async onExecuteInUIAbilityBackgroundMode(intentName: string):
     Promise<insightIntent.ExecuteResult> {
+    HiAppEventManager.configure();
     switch (intentName) {
       case 'PlayMusicList':
       case 'PlayAudio':

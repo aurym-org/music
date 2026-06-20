@@ -8,6 +8,7 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { display, window } from '@kit.ArkUI';
 import { BreakpointConstants } from '../common/constants/BreakpointConstants';
+import { HiAppEventManager } from '../common/utils/HiAppEventManager';
 
 const DOMAIN = 0x0000;
 
@@ -15,6 +16,7 @@ export default class EntryAbility extends UIAbility {
   private windowObj?: window.Window;
 
   onCreate(_want: Want, _launchParam: AbilityConstant.LaunchParam): void {
+    HiAppEventManager.configure();
     try {
       AppStorage.setOrCreate('context', this.context)
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
