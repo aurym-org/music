@@ -187,7 +187,6 @@ export class MediaControlCenter {
     }
     try {
       await this.avPlayerController.play();
-      this.updateIsPlay(true);
     } catch (err) {
       Logger.error(TAG, `play failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
     }
@@ -204,7 +203,6 @@ export class MediaControlCenter {
     } catch (err) {
       Logger.error(TAG, `pause failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
     }
-    this.updateIsPlay(false);
     BackgroundUtil.stopContinuousTask(this.context!);
   }
 
@@ -292,7 +290,6 @@ export class MediaControlCenter {
     } catch (err) {
       Logger.error(TAG, `stop failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
     }
-    this.updateIsPlay(false);
     Logger.info(TAG, 'stop success')
     BackgroundUtil.stopContinuousTask(this.context);
   }
@@ -310,17 +307,6 @@ export class MediaControlCenter {
   private setPlayModeToControlArea(playMode: MusicPlayMode) {
     AppStorage.setOrCreate('playMode', playMode);
     PreferencesUtil.getInstance().preferencesPut(PLAY_MODE_ID, playMode);
-  }
-
-  public updateIsPlay(isPlay: boolean) {
-    Logger.info(TAG, `avSessionController isPlay is ${isPlay}`)
-    AppStorage.setOrCreate<boolean>('isPlay', isPlay);
-    if (!this.avSessionController) {
-      Logger.error(TAG, `avSessionController is undefined`);
-      return;
-    }
-    const progress = AppStorage.get<number>('progress') ?? 0;
-    this.avSessionController.setPlayState(isPlay, progress);
   }
 
   public getVolume(): number {

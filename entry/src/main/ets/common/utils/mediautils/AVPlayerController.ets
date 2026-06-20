@@ -12,7 +12,6 @@ import { MediaTools } from './MediaTools';
 import { AVSessionController } from './AVSessionController';
 import { MediaControlCenter } from './MediaControlCenter';
 import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
-import { PreferencesUtil } from '../PreferencesUtil';
 import { ERROR_MESSAGE } from '../../constants/PlayerConstants';
 
 const TAG = 'AVPlayerController'
@@ -242,6 +241,7 @@ export class AVPlayerController {
       return;
     }
     await this.avPlayer.stop();
+    this.updateIsPlay(false);
     Logger.info(TAG, 'avPlayer stop success')
   }
   // [End stop]
@@ -491,7 +491,6 @@ export class AVPlayerController {
     if (!this.avSessionController) {
       return;
     }
-    const progress = AppStorage.get<number>('progress') ?? 0;
-    this.avSessionController.setPlayState(isPlay, progress);
+    this.avSessionController.setPlayState(isPlay);
   }
 }
