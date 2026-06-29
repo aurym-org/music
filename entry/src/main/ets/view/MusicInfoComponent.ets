@@ -90,12 +90,13 @@ export struct MusicInfoComponent {
           .margin({ top: $r('app.float.music_text_margin_top') })
           .fontWeight(FontWeight.Regular)
       }
+      .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
 
-      SymbolGlyph(this.isFavorite ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'))
-        .fontSize(26)
-        .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-        .fontColor([this.isFavorite ? Color.Red : Color.White])
+      Image(this.isFavorite ? $r('app.media.ic_heart_fill') : $r('app.media.ic_heart'))
+        .height(45)
+        .width(45)
+        .objectFit(ImageFit.Contain)
         .opacity(0.86)
         .onClick(() => {
           this.isFavorite = !this.isFavorite;

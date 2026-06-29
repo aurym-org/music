@@ -47,10 +47,10 @@ export struct PlaylistControl {
   }
 
   build() {
-    SymbolGlyph($r('sys.symbol.music_note_list'))
-      .fontSize(26)
-      .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-      .fontColor([Color.White])
+    Image($r('app.media.ic_music_note_list'))
+      .height(45)
+      .width(45)
+      .objectFit(ImageFit.Contain)
       .opacity(0.86)
       .onClick(() => {
         this.isShowSheet = true;

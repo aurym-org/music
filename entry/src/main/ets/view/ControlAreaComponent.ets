@@ -85,11 +85,11 @@ export struct ControlAreaComponent {
   build() {
     Column() {
       Row() {
-        SymbolGlyph(this.playMode === MusicPlayMode.ORDER ? $r('sys.symbol.order_play') :
-          this.playMode === MusicPlayMode.RANDOM ? $r('sys.symbol.shuffle') : $r('sys.symbol.repeat_1'))
-          .fontSize(26)
-          .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-          .fontColor([Color.White])
+        Image(this.playMode === MusicPlayMode.ORDER ? $r('app.media.ic_bubu_order_play') :
+          this.playMode === MusicPlayMode.RANDOM ? $r('app.media.ic_bubu_shuffle') : $r('app.media.ic_bubu_repeat_1'))
+          .height(45)
+          .width(45)
+          .objectFit(ImageFit.Contain)
           .opacity(0.86)
           .onClick(() => {
             this.switchPlayMode()
@@ -97,10 +97,10 @@ export struct ControlAreaComponent {
 
         PlaylistControl()
 
-        SymbolGlyph(this.isSilentMode ? $r('sys.symbol.bell_slash') : $r('sys.symbol.bell'))
-          .fontSize(26)
-          .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-          .fontColor([Color.White])
+        Image(this.isSilentMode ? $r('app.media.ic_bell_slash') : $r('app.media.ic_bell'))
+          .height(45)
+          .width(45)
+          .objectFit(ImageFit.Contain)
           .opacity(0.86)
           .onClick(() => {
             this.isSilentMode = !this.isSilentMode;
@@ -171,7 +171,7 @@ export struct ControlAreaComponent {
       })
 
       Row() {
-        Image($r('app.media.ic_public_forward'))
+        Image($r('app.media.ic_bubu_forward'))
           .controlImageBuilder()
           .width(this.currentBreakpoint === BreakpointConstants.BREAKPOINT_LG ?
             $r('app.float.control_width_lg') : $r('app.float.control_width'))
@@ -194,7 +194,7 @@ export struct ControlAreaComponent {
             .color(Color.White)
             .opacity(0.86)
         } else {
-          Image(this.isPlay ? $r('app.media.ic_public_pause') : $r('app.media.ic_public_play'))
+          Image(this.isPlay ? $r('app.media.ic_yier_pause') : $r('app.media.ic_yier_play'))
             .controlImageBuilder()
             .width(new BreakpointType({
               sm: $r('app.float.image_play_width'),
@@ -210,7 +210,7 @@ export struct ControlAreaComponent {
               this.pageShowTime = 0;
             })
         }
-        Image($r('app.media.ic_public_next'))
+        Image($r('app.media.ic_bubu_next'))
           .controlImageBuilder()
           .width(this.currentBreakpoint === BreakpointConstants.BREAKPOINT_LG ?
             $r('app.float.control_width_lg') : $r('app.float.control_width'))

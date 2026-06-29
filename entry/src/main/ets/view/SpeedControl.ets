@@ -19,10 +19,10 @@ export struct SpeedControl {
   @State isShowSheet: boolean = false;
 
   build() {
-    SymbolGlyph($r('sys.symbol.video_speed'))
-      .fontSize(26)
-      .renderingStrategy(SymbolRenderingStrategy.SINGLE)
-      .fontColor([Color.White])
+    Image($r('app.media.ic_video_speed'))
+      .height(45)
+      .width(45)
+      .objectFit(ImageFit.Contain)
       .opacity(0.86)
       .onClick(() => {
         this.isShowSheet = true;
@@ -63,7 +63,7 @@ export struct SpeedControl {
           })
         Text(this.speed.toString())
           .fontSize(15)
-          .width(30)
+          .width(45)
       }
       .padding({ left: 15, right: 15 })
     }
