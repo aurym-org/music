@@ -85,7 +85,9 @@ export default class SongItemBuilder {
     if (result.code !== 0) {
       throw new Error(`API error: ${result.message}`);
     }
-    const audioUrl: string = result.data.dash.audio[0].baseUrl;
+    const audio = result.data.dash.audio.find(item => item.id === 30216)!;
+    const rawUrl = audio.backupUrl.find(u => u.includes('upos-'))!;
+    const audioUrl = rawUrl.replace(/^https?:\/\/[^\/]+/, 'https://upos-sz-mirrorali.bilivideo.com');
     this.putAudioUrl(bvid, audioUrl);
     return audioUrl;
   }

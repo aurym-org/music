@@ -20,5 +20,5 @@ interface dash {
 
 interface audio {
   id: number,
-  baseUrl: string
+  backupUrl: string[]
 }
