@@ -57,7 +57,6 @@ export class MediaControlCenter {
     AppStorage.setOrCreate('currentBvid', this.songList[this.musicIndex].bvid);
     AppStorage.setOrCreate('currentCid', this.songList[this.musicIndex].cid);
     await this.avPlayerController.loadSongAssent(this.songList[this.musicIndex].src);
-    this.setLoading(false);
   }
   // [End loadSongAssent]
 
@@ -131,6 +130,7 @@ export class MediaControlCenter {
       this.initAudioManager()
     ]);
     await this.loadSongAssent();
+    this.setLoading(false);
     this.avSessionController?.setAVMetadata();
     this.setSilentModeFromPrefer();
     this.setVolumeFromPrefer();
@@ -172,6 +172,7 @@ export class MediaControlCenter {
     await this.loadSongAssent();
     if (this.switchVersion !== currentVersion) return;
     await this.play();
+    this.setLoading(false);
   }
 
   // [Start StartContinuousTask]

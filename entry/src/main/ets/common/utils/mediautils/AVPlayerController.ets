@@ -379,7 +379,6 @@ export class AVPlayerController {
           AppStorage.setOrCreate('totalTime', MediaTools.msToCountdownTime(this.avPlayer?.duration!));
           AppStorage.setOrCreate('totalMsTime', this.avPlayer?.duration!);
           AppStorage.setOrCreate('progressMax', this.avPlayer?.duration!);
-          AppStorage.setOrCreate('isLoading', false);
           if (!this.avSessionController) {
             Logger.error(TAG, 'avSessionController is undefined');
             return;
