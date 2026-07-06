@@ -284,13 +284,17 @@ export class AVSessionController {
   }
 
   // Set play state.
-  public setPlayState(isPlay: boolean) {
+  public setPlayState(isPlay: boolean, currentMs: number) {
     if (!this.AVSession) {
       Logger.error(TAG, 'AVSession is undefined');
       return;
     }
     const playbackState: avSession.AVPlaybackState = {
       state: isPlay ? avSession.PlaybackState.PLAYBACK_STATE_PLAY : avSession.PlaybackState.PLAYBACK_STATE_PAUSE,
+    };
+    playbackState.position = {
+      elapsedTime: currentMs,
+      updateTime: new Date().getTime()
     };
     this.AVSession.setAVPlaybackState(playbackState, (err: BusinessError) => {
       if (err) {

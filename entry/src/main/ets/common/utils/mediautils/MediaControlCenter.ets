@@ -164,7 +164,6 @@ export class MediaControlCenter {
 
     AppStorage.setOrCreate('progress', 0);
     AppStorage.setOrCreate('currentTime', '00:00');
-    this.avSessionController?.setProgressState(0);
     this.updateMusicIndex(newIndex);
 
     await this.stop();
