@@ -71,7 +71,7 @@ export class ContentConstants {
   /**
    * Id of BiliBili favorite folder.
    */
-  static readonly FAV_ID: number = 3140829853;
+  static readonly FAV_ID: number = 4088183953;
 
   /**
    * Id of BiliBili upper.
