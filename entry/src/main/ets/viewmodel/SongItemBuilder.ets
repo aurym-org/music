@@ -23,15 +23,8 @@ export interface CacheData {
 export default class SongItemBuilder {
   private context: common.UIAbilityContext | undefined = AppStorage.get('context');
   private songItem: SongItem | null = null;
-  private currentRequest: http.HttpRequest | null = null;
-
-  cleanHttpRequest() {
-    this.currentRequest?.destroy();
-    this.currentRequest = null;
-  }
 
   async getBiliPlayUrl(bvid: string, cid: number): Promise<string> {
-    this.cleanHttpRequest();
     const params = new Map<string, string | number>();
     params.set('bvid', bvid);
     params.set('cid', cid);
@@ -44,29 +37,31 @@ export default class SongItemBuilder {
     });
     const url = `https://api.bilibili.com/x/player/wbi/playurl?${queryParts.join('&')}`;
     const httpRequest = http.createHttp();
-    this.currentRequest = httpRequest;
-    const response = await httpRequest.request(url, {
-      method: http.RequestMethod.GET,
-      header: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://www.bilibili.com/',
-        'Accept-Language': 'zh-CN,zh;q=0.9'
-      },
-      connectTimeout: 10000,
-      readTimeout: 10000
-    });
-    this.cleanHttpRequest();
-    if (response.responseCode !== 200) {
-      throw new Error(`HTTP error: ${response.responseCode}`);
+    try {
+      const response = await httpRequest.request(url, {
+        method: http.RequestMethod.GET,
+        header: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://www.bilibili.com/',
+          'Accept-Language': 'zh-CN,zh;q=0.9'
+        },
+        connectTimeout: 10000,
+        readTimeout: 10000
+      });
+      if (response.responseCode !== 200) {
+        throw new Error(`HTTP error: ${response.responseCode}`);
+      }
+      const result: BiliPlayUrl = JSON.parse(response.result as string);
+      if (result.code !== 0) {
+        throw new Error(`API error: ${result.message}`);
+      }
+      const audio = result.data.dash.audio.find(item => item.id === 30216)!;
+      const rawUrl = audio.backupUrl.find(u => u.includes('upos-'))!;
+      const audioUrl = rawUrl.replace(/^https?:\/\/[^\/]+/, 'https://upos-sz-mirrorali.bilivideo.com');
+      return audioUrl;
+    } finally {
+      httpRequest.destroy();
     }
-    const result: BiliPlayUrl = JSON.parse(response.result as string);
-    if (result.code !== 0) {
-      throw new Error(`API error: ${result.message}`);
-    }
-    const audio = result.data.dash.audio.find(item => item.id === 30216)!;
-    const rawUrl = audio.backupUrl.find(u => u.includes('upos-'))!;
-    const audioUrl = rawUrl.replace(/^https?:\/\/[^\/]+/, 'https://upos-sz-mirrorali.bilivideo.com');
-    return audioUrl;
   }
 
   public async build(songItem: SongItem): Promise<void> {

@@ -48,7 +48,22 @@ export class SongDownloadManager {
    * 获取本地歌曲的完整路径（包含 .m4a 扩展名）
    */
   public getLocalPath(bvid: string): string {
-    return `${this.getSongDir()}/${bvid}${FINAL_EXT}`;
+    return this.getFilePath(bvid, FINAL_EXT);
+  }
+
+  /**
+   * 生成歌曲文件的完整路径（通用）
+   * @param bvid 歌曲标识
+   * @param ext 文件扩展名（如 '.m4a' 或 '.m4s.part'）
+   * @returns 完整路径，如果目录无效则返回空字符串
+   */
+  private getFilePath(bvid: string, ext: string): string {
+    const dir = this.getSongDir();
+    if (!dir) {
+      Logger.warn(TAG, `Cannot get file path for ${bvid}: song dir is empty`);
+      return '';
+    }
+    return `${dir}/${bvid}${ext}`;
   }
 
   public hasLocalSong(bvid: string): boolean {
@@ -60,7 +75,18 @@ export class SongDownloadManager {
   }
 
   public removeLocalSong(bvid: string): void {
-    this.removeFileQuietly(this.getLocalPath(bvid));
+    this.downloading.delete(bvid);
+
+    const mainPath = this.getFilePath(bvid, FINAL_EXT);
+    const partPath = this.getFilePath(bvid, `.m4s${PART_SUFFIX}`);
+    this.removeFileQuietly(mainPath);
+    this.removeFileQuietly(partPath);
+
+    if (mainPath || partPath) {
+      Logger.info(TAG, `Removed local song files and download record for ${bvid}`);
+    } else {
+      Logger.warn(TAG, `No valid paths to remove for ${bvid}, but download record cleared`);
+    }
   }
 
   /**
@@ -84,24 +110,22 @@ export class SongDownloadManager {
    * 下载 .m4s 文件，直接重命名为 .m4a（因为 .m4s 本质就是纯音频 MP4 片段）
    */
   private async downloadToFile(bvid: string, url: string): Promise<void> {
-    const dir = this.ensureSongDir();
-    const rawPath = `${dir}/${bvid}.m4s${PART_SUFFIX}`;   // 临时文件：.m4s.part
-    const finalPath = `${dir}/${bvid}${FINAL_EXT}`;       // 最终文件：.m4a
+    this.ensureSongDir();
+    const rawPath = this.getFilePath(bvid, `.m4s${PART_SUFFIX}`);
+    const finalPath = this.getFilePath(bvid, FINAL_EXT);
+    if (!rawPath || !finalPath) {
+      throw new Error(`Cannot get valid paths for ${bvid}`);
+    }
 
     this.removeFileQuietly(rawPath);
     this.removeFileQuietly(finalPath);
 
     try {
-      // 1. 下载原始 .m4s 数据到临时文件
       const buffer = await this.fetchAudioBuffer(bvid, url);
       this.writeBufferToFile(rawPath, buffer);
-
-      // 2. 直接重命名为 .m4a
       fileIo.renameSync(rawPath, finalPath);
-
       Logger.info(TAG, `下载并重命名成功：${finalPath}`);
     } catch (e) {
-      // 出错时清理所有相关文件
       this.removeFileQuietly(rawPath);
       this.removeFileQuietly(finalPath);
       throw new Error(`处理失败: ${e.message}`);
@@ -195,7 +219,7 @@ export class SongDownloadManager {
         continue;
       }
       try {
-        fileIo.unlinkSync(`${dir}/${name}`);
+        this.removeFileQuietly(`${dir}/${name}`);
         Logger.info(TAG, `deleted stale song file: ${name}`);
       } catch (e) {
         Logger.error(TAG, `delete ${name} failed: ${e.message}`);
@@ -217,8 +241,11 @@ export class SongDownloadManager {
   }
 
   private removeFileQuietly(path: string): void {
-    if (fileIo.accessSync(path)) {
-      fileIo.unlinkSync(path);
-    }
+    if (!path) return;
+    try {
+      if (fileIo.accessSync(path)) {
+        fileIo.unlinkSync(path);
+      }
+    } catch (e) {}
   }
 }

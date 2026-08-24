@@ -30,11 +30,10 @@ export class AVPlayerController {
   private preparedResolve?: () => void;
   private preparedReject?: (error: Error) => void;
   private preparedPromise?: Promise<void>;
-  private preparedTimeoutId?: number;
   private isCurrentLocal: boolean = false;
   private localFile: fileIo.File | null = null;
 
-  public waitForPrepared(timeoutMs: number = 10000): Promise<void> {
+  public waitForPrepared(): Promise<void> {
     if (this.currentState === 'prepared') {
       return Promise.resolve();
     }
@@ -42,25 +41,12 @@ export class AVPlayerController {
       this.preparedPromise = new Promise((resolve, reject) => {
         this.preparedResolve = resolve;
         this.preparedReject = reject;
-
-        const timeoutId = setTimeout(() => {
-          const error = new Error('waitForPrepared timeout');
-          if (this.preparedReject) {
-            this.preparedReject(error);
-            this.cleanupPreparedPromise();
-          }
-        }, timeoutMs);
-        this.preparedTimeoutId = timeoutId;
       });
     }
     return this.preparedPromise;
   }
 
   private cleanupPreparedPromise() {
-    if (this.preparedTimeoutId) {
-      clearTimeout(this.preparedTimeoutId);
-      this.preparedTimeoutId = undefined;
-    }
     this.preparedResolve = undefined;
     this.preparedReject = undefined;
     this.preparedPromise = undefined;
