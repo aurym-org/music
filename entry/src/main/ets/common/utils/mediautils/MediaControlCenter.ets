@@ -16,9 +16,11 @@ import { AVPlayerController } from './AVPlayerController';
 import { BackgroundUtil } from '../BackgroundUtil';
 import { common } from '@kit.AbilityKit';
 import { PreferencesUtil } from '../PreferencesUtil';
+import { SongDownloadManager } from '../SongDownloadManager';
 import { audio } from '@kit.AudioKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { wbiSigner } from '../BiliWbiUtil';
+import { getCurrentVersion, incrementVersion, isVersionMatch } from '../VersionUtil';
 
 const TAG = 'MediaControlCenter';
 
@@ -33,7 +35,6 @@ export class MediaControlCenter {
   private audioSessionManager: audio.AudioSessionManager | undefined = undefined;
   private isInitted = false;
   private static mediaControlFunction: MediaControlCenter;
-  private switchVersion: number = 0;
   private lastProgressUpdateTime: number = 0;
 
   private setLoading(loading: boolean) {
@@ -46,14 +47,14 @@ export class MediaControlCenter {
       Logger.error(TAG, 'songList is empty or invalid index');
       return;
     }
-    const currentVersion = this.switchVersion;
-    if (this.switchVersion !== currentVersion) return;
+    const currentVersion = getCurrentVersion();
+    if (!isVersionMatch(currentVersion)) return;
     await this.songItemBuilder.build(this.songList[this.musicIndex]);
     if (!this.avPlayerController) {
       Logger.error(TAG, 'avPlayerController is undefined');
       return;
     }
-    if (this.switchVersion !== currentVersion) return;
+    if (!isVersionMatch(currentVersion)) return;
     AppStorage.setOrCreate('currentBvid', this.songList[this.musicIndex].bvid);
     AppStorage.setOrCreate('currentCid', this.songList[this.musicIndex].cid);
     await this.avPlayerController.loadSongAssent(this.songList[this.musicIndex].src);
@@ -65,23 +66,6 @@ export class MediaControlCenter {
       MediaControlCenter.mediaControlFunction = new MediaControlCenter();
     }
     return MediaControlCenter.mediaControlFunction;
-  }
-
-  private clearExpiredAudio() {
-    const data = PreferencesUtil.getInstance().getAll();
-    if (!data) {
-      return;
-    }
-    const allKeys = Object.keys(data);
-    for (let key of allKeys) {
-      if (!key.startsWith('bvid_')) {
-        continue;
-      }
-      const cacheData: CacheData = JSON.parse(PreferencesUtil.getInstance().getValue(key) as string);
-      if (cacheData.expire < Date.now()) {
-        PreferencesUtil.getInstance().removeKey(key);
-      }
-    }
   }
 
   private async initAVSession() {
@@ -115,15 +99,14 @@ export class MediaControlCenter {
     if (this.isInitted) {
       return;
     }
-    this.clearExpiredAudio();
     await wbiSigner.fetchAndCacheWbiKeys();
-    AppStorage.setOrCreate('switchVersion', this.switchVersion);
     await getFavoriteDetail(ContentConstants.FAV_ID);
     this.songList = AppStorage.get('songList')!;
     if (!this.songList || this.songList.length === 0) {
       AppStorage.setOrCreate(ERROR_MESSAGE, '歌单为空，请检查网络连接后重试');
       return;
     }
+    SongDownloadManager.getInstance().deleteSongsNotIn(this.songList);
     await Promise.all([
       this.initAvplayer(),
       this.initAVSession(),
@@ -158,18 +141,15 @@ export class MediaControlCenter {
 
   public async switchToIndex(newIndex: number) {
     this.setLoading(true);
-    this.switchVersion++;
-    AppStorage.setOrCreate('switchVersion', this.switchVersion);
-    const currentVersion = this.switchVersion;
-
+    const currentVersion = incrementVersion();
     AppStorage.setOrCreate('progress', 0);
     AppStorage.setOrCreate('currentTime', '00:00');
     this.updateMusicIndex(newIndex);
 
     await this.stop();
-    if (this.switchVersion !== currentVersion) return;
+    if (!isVersionMatch(currentVersion)) return;
     await this.loadSongAssent();
-    if (this.switchVersion !== currentVersion) return;
+    if (!isVersionMatch(currentVersion)) return;
     await this.play();
     this.setLoading(false);
   }

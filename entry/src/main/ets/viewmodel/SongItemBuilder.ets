@@ -6,12 +6,12 @@
 
 import { common } from '@kit.AbilityKit';
 import { SongItem } from './SongData';
-import { url } from '@kit.ArkTS';
 import Logger from '../common/utils/Logger';
 import { http } from '@kit.NetworkKit';
-import { PreferencesUtil } from '../common/utils/PreferencesUtil';
 import { BiliPlayUrl } from './BiliPlayUrl';
 import { wbiSigner } from '../common/utils/BiliWbiUtil';
+import { SongDownloadManager } from '../common/utils/SongDownloadManager';
+import { getCurrentVersion, isVersionMatch } from '../common/utils/VersionUtil';
 
 const TAG = 'SongItemBuilder'
 
@@ -25,34 +25,12 @@ export default class SongItemBuilder {
   private songItem: SongItem | null = null;
   private currentRequest: http.HttpRequest | null = null;
 
-  putAudioUrl(bvid: string, raw_url: string): void {
-    const data = JSON.stringify({
-      url: raw_url,
-      expire: Number(url.URL.parseURL(raw_url).params.get('deadline')) * 1000
-    });
-    PreferencesUtil.getInstance().preferencesPut('bvid_'+bvid, data);
-  }
-
-  async getAudioUrl(bvid: string): Promise<string | null> {
-    const str: string = PreferencesUtil.getInstance().getValue('bvid_'+bvid) as string;
-
-    try {
-      const cacheData: CacheData = JSON.parse(str);
-      if (cacheData.expire - 5 * 60 * 1000 > Date.now()) return cacheData.url;
-      await PreferencesUtil.getInstance().removeKey('bvid_'+bvid);
-    } catch {
-      await PreferencesUtil.getInstance().removeKey('bvid_'+bvid);
-    }
-    return null;
-  }
-
   cleanHttpRequest() {
     this.currentRequest?.destroy();
     this.currentRequest = null;
   }
 
   async getBiliPlayUrl(bvid: string, cid: number): Promise<string> {
-    await PreferencesUtil.getInstance().removeKey('bvid_'+bvid);
     this.cleanHttpRequest();
     const params = new Map<string, string | number>();
     params.set('bvid', bvid);
@@ -88,12 +66,11 @@ export default class SongItemBuilder {
     const audio = result.data.dash.audio.find(item => item.id === 30216)!;
     const rawUrl = audio.backupUrl.find(u => u.includes('upos-'))!;
     const audioUrl = rawUrl.replace(/^https?:\/\/[^\/]+/, 'https://upos-sz-mirrorali.bilivideo.com');
-    this.putAudioUrl(bvid, audioUrl);
     return audioUrl;
   }
 
   public async build(songItem: SongItem): Promise<void> {
-    const currentVersion = AppStorage.get<number>('switchVersion') ?? 0;
+    const currentVersion = getCurrentVersion();
     this.songItem = songItem;
     if (!this.context) {
       return;
@@ -103,18 +80,21 @@ export default class SongItemBuilder {
       Logger.error(TAG, 'MediaAssetBuilder build: bvid is empty');
       return;
     }
-    let realUrl = await this.getAudioUrl(bvid);
-    if (realUrl) {
-      if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
-      this.songItem.src = realUrl;
+
+    const songStore = SongDownloadManager.getInstance();
+    if (songStore.hasLocalSong(bvid)) {
+      if (!isVersionMatch(currentVersion)) return;
+      this.songItem.src = songStore.getLocalPath(bvid);
+      Logger.info(TAG, 'MediaAssetBuilder build local song:' + this.songItem.src);
       return;
     }
-    if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+    if (!isVersionMatch(currentVersion)) return;
     try {
-      if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+      if (!isVersionMatch(currentVersion)) return;
       const targetAudioUrl = await this.getBiliPlayUrl(bvid, this.songItem.cid);
-      if (AppStorage.get<number>('switchVersion') !== currentVersion) return;
+      if (!isVersionMatch(currentVersion)) return;
       this.songItem.src = targetAudioUrl;
+      SongDownloadManager.getInstance().startDownload(bvid, targetAudioUrl);
       Logger.info(TAG, 'MediaAssetBuilder build realUrl:' + this.songItem.src);
     } catch (error) {
       Logger.error(TAG, `MediaAssetBuilder build error: ${error.message}`);

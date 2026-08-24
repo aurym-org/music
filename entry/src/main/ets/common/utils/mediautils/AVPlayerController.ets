@@ -8,11 +8,14 @@ import Logger from '../Logger';
 import { media } from '@kit.MediaKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { audio } from '@kit.AudioKit';
+import { fileIo } from '@kit.CoreFileKit';
 import { MediaTools } from './MediaTools';
 import { AVSessionController } from './AVSessionController';
 import { MediaControlCenter } from './MediaControlCenter';
 import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
+import { SongDownloadManager } from '../SongDownloadManager';
 import { ERROR_MESSAGE } from '../../constants/PlayerConstants';
+import { getCurrentVersion, isVersionMatch } from '../VersionUtil';
 
 const TAG = 'AVPlayerController'
 
@@ -28,6 +31,8 @@ export class AVPlayerController {
   private preparedReject?: (error: Error) => void;
   private preparedPromise?: Promise<void>;
   private preparedTimeoutId?: number;
+  private isCurrentLocal: boolean = false;
+  private localFile: fileIo.File | null = null;
 
   public waitForPrepared(timeoutMs: number = 10000): Promise<void> {
     if (this.currentState === 'prepared') {
@@ -61,17 +66,22 @@ export class AVPlayerController {
     this.preparedPromise = undefined;
   }
 
+  private isLocalSource(url: string): boolean {
+    // 本地绝对路径以 '/' 开头
+    return url.startsWith('/');
+  }
+
   async setPlayerUrl(url: string) {
+    if (this.localFile) {
+      fileIo.closeSync(this.localFile);
+      this.localFile = null;
+    }
     if (this.preparedReject) {
       this.preparedReject(new Error('setPlayerUrl called with new url, cancelling previous wait'));
       this.cleanupPreparedPromise();
     }
-    const currentVersion = AppStorage.get<number>('switchVersion') ?? 0;
-    const headers: Record<string, string> = {
-      'Referer': 'https://www.bilibili.com/',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    };
-    if (AppStorage.get<number>('switchVersion') !== currentVersion) {
+    const currentVersion = getCurrentVersion();
+    if (!isVersionMatch(currentVersion)) {
       if (this.preparedReject) {
         this.preparedReject(new Error('setPlayerUrl cancelled due to version change'));
         this.cleanupPreparedPromise();
@@ -79,18 +89,41 @@ export class AVPlayerController {
       return;
     }
     await this.avPlayer!.reset();
-    if (AppStorage.get<number>('switchVersion') !== currentVersion) {
+    if (!isVersionMatch(currentVersion)) {
       if (this.preparedReject) {
         this.preparedReject(new Error('setPlayerUrl cancelled after reset'));
         this.cleanupPreparedPromise();
       }
       return;
     }
-    let mediaSource: media.MediaSource = media.createMediaSourceWithUrl(url, headers);
-    let playStrategy: media.PlaybackStrategy = {
-      preferredBufferDuration: 1,
-    };
-    await this.avPlayer!.setMediaSource(mediaSource, playStrategy);
+
+    if (this.isLocalSource(url)) {
+      this.isCurrentLocal = true;
+      if (this.localFile) {
+        fileIo.closeSync(this.localFile);
+        this.localFile = null;
+      }
+
+      // 打开本地文件（只读）
+      this.localFile = fileIo.openSync(url, fileIo.OpenMode.READ_ONLY);
+      const avFileDescriptor: media.AVFileDescriptor = {
+        fd: this.localFile.fd,
+        offset: 0,
+        length: 0
+      };
+      this.avPlayer!.fdSrc = avFileDescriptor;
+    } else {
+      this.isCurrentLocal = false;
+      const headers: Record<string, string> = {
+        'Referer': 'https://www.bilibili.com/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      };
+      let mediaSource: media.MediaSource = media.createMediaSourceWithUrl(url, headers);
+      let playStrategy: media.PlaybackStrategy = {
+        preferredBufferDuration: 1,
+      };
+      await this.avPlayer!.setMediaSource(mediaSource, playStrategy);
+    }
   }
 
   // [Start loadSongAssent]
@@ -276,6 +309,10 @@ export class AVPlayerController {
     this.avPlayer.off('audioOutputDeviceChangeWithInfo');
     this.avPlayer.release();
     this.avPlayer = undefined;
+    if (this.localFile) {
+      fileIo.closeSync(this.localFile);
+      this.localFile = null;
+    }
     Logger.info(TAG, 'avPlayer release success');
   }
   // [End release]
@@ -338,11 +375,19 @@ export class AVPlayerController {
       Logger.error(TAG, `errorCallback , code is ${error.code} message is ${error.message}`);
       const bvid = AppStorage.get<string>('currentBvid');
       const cid = AppStorage.get<number>('currentCid');
+      // 本地文件损坏或不支持时，删掉它再回退到远程，避免下次继续加载坏文件
+      if (this.isCurrentLocal && bvid) {
+        SongDownloadManager.getInstance().removeLocalSong(bvid);
+        this.isCurrentLocal = false;
+      }
       if (bvid && cid !== undefined && this.urlRetryCount < AVPlayerController.MAX_URL_RETRY) {
         this.urlRetryCount++;
         try {
           const songItemBuilder = new SongItemBuilder();
           const url = await songItemBuilder.getBiliPlayUrl(bvid, cid);
+          if (this.isCurrentLocal && bvid) {
+            SongDownloadManager.getInstance().startDownload(bvid, url);
+          }
           this.waitPlay = true;
           await this.setPlayerUrl(url);
         } catch (e) {

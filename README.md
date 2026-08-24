@@ -19,6 +19,8 @@ Aurym Music 是一个轻量级的 B 站收藏夹音乐播放器，运行在 Harm
 - [x] 播控中心控制及冷启动
 - [x] 记忆上次播放模式
 - [x] 收藏夹缓存
+- [x] 本地缓存歌曲，边下边播
+- [x] 启动时自动清理失效缓存
 
 ## 为什么做这个
 
@@ -60,7 +62,9 @@ git clone https://github.com/fbotp/AurymMusic.git
 │  │     ├──BreakpointSystem.ets                          // 断点系统类
 │  │     ├──Logger.ets                                    // 日志类
 │  │     ├──PreferencesUtil.ets                           // 首选项工具类
-│  │     └──ResourceConversion.ets                        // 资源工具类
+│  │     ├──ResourceConversion.ets                        // 资源工具类
+│  │     ├──SongDownloadManager.ets                       // 本地歌曲下载管理类
+│  │     └──VersionUtil.ets                               // 歌曲全局版本管理
 │  ├──entryability
 │  │  ├──EntryAbility.ets                                 // Ability的生命周期回调内容
 │  │  └──InsightIntentExecutorImpl.ets                    // 意图框架回调内容
