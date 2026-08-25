@@ -11,6 +11,7 @@ import { http } from '@kit.NetworkKit';
 import { wbiSigner } from '../common/utils/BiliWbiUtil';
 import { SongDownloadManager } from '../common/utils/SongDownloadManager';
 import { getCurrentVersion, isVersionMatch } from '../common/utils/VersionUtil';
+import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 
 const TAG = 'SongItemBuilder'
 
@@ -34,7 +35,7 @@ interface audio {
 }
 
 export default class SongItemBuilder {
-  private context: common.UIAbilityContext | undefined = AppStorage.get('context');
+  private context: common.UIAbilityContext | undefined = AppStorage.get(APP_STORAGE_KEYS.CONTEXT);
   private songItem: SongItem | null = null;
 
   async getBiliPlayUrl(bvid: string, cid: number): Promise<string> {
@@ -106,7 +107,7 @@ export default class SongItemBuilder {
       Logger.info(TAG, 'MediaAssetBuilder build realUrl:' + this.songItem.src);
     } catch (error) {
       Logger.error(TAG, `MediaAssetBuilder build error: ${error.message}`);
-      AppStorage.setOrCreate('errorMessage', `加载歌曲失败: ${error.message}`);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, `加载歌曲失败: ${error.message}`);
     }
     return;
   }

@@ -111,8 +111,6 @@ export const VOLUME_ID = 'volumeId';
 
 export const PLAY_MODE_ID = 'playModeId';
 
-export const ERROR_MESSAGE = 'errorMessage';
-
 export const DEFAULT_VOLUME = 100;
 
 export class Options {

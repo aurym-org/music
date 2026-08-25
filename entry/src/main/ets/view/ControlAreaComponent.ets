@@ -6,7 +6,7 @@
 
 import { PromptAction } from '@kit.ArkUI';
 import { BreakpointConstants } from '../common/constants/BreakpointConstants';
-import { ERROR_MESSAGE, MusicPlayMode, PlayerConstants, PlayModeSwitchList, VOLUME_ID, PLAY_MODE_ID } from '../common/constants/PlayerConstants';
+import { MusicPlayMode, PlayerConstants, PlayModeSwitchList, VOLUME_ID, PLAY_MODE_ID } from '../common/constants/PlayerConstants';
 import { StyleConstants } from '../common/constants/StyleConstants';
 import { BreakpointType } from '../common/utils/BreakpointSystem';
 import Logger from '../common/utils/Logger';
@@ -18,6 +18,7 @@ import { PlaylistControl } from './PlaylistControl';
 import { SpeedControl } from './SpeedControl';
 import { VolumeControl } from './VolumeControl';
 import { MediaTools } from '../common/utils/mediautils/MediaTools';
+import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 
 const TAG = 'ControlAreaComponent';
 
@@ -35,7 +36,7 @@ export struct ControlAreaComponent {
   @StorageProp('selectIndex') selectIndex: number = 0;
   @StorageLink('isSilentMode') @Watch('isSilentModeChange') isSilentMode: boolean = false;
   @StorageLink('isLoading') isLoading: boolean = true;
-  @StorageLink(ERROR_MESSAGE) @Watch('onErrorMessage') errorMessage: string = '';
+  @StorageLink(APP_STORAGE_KEYS.ERROR_MESSAGE) @Watch('onErrorMessage') errorMessage: string = '';
   @StorageLink('currentVolume') @Watch('currentVolumeChange') volume: number = 0;
   private resourceConversion: ResourceConversion = new ResourceConversion();
   uiContext: UIContext = this.getUIContext();
@@ -54,7 +55,7 @@ export struct ControlAreaComponent {
   onErrorMessage() {
     if (this.errorMessage) {
       this.promptAction.openToast({ message: this.errorMessage, duration: 3000 });
-      AppStorage.setOrCreate(ERROR_MESSAGE, '');
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, '');
     }
   }
 
@@ -129,7 +130,7 @@ export struct ControlAreaComponent {
           .selectedColor($r('app.color.slider_select'))
           .trackColor($r('app.color.slider_track'))
           .onChange((value: number, mode: SliderChangeMode) => {
-            AppStorage.setOrCreate('currentTime', MediaTools.msToCountdownTime(value));
+            AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_TIME, MediaTools.msToCountdownTime(value));
             if (mode === SliderChangeMode.End) {
               MediaControlCenter.getInstance().seek(value);
             }

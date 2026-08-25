@@ -12,6 +12,7 @@ import Logger from '../Logger';
 import { MusicPlayMode } from '../../constants/PlayerConstants';
 import { PreferencesUtil } from '../PreferencesUtil';
 import { MediaControlCenter } from './MediaControlCenter';
+import { APP_STORAGE_KEYS } from '../../constants/AppStorageKeys';
 
 const TAG = 'AVSessionController';
 
@@ -24,7 +25,7 @@ export class AVSessionController {
   private static avSessionController: AVSessionController;
 
   constructor() {
-    let list: SongItem[] | undefined = AppStorage.get('songList');
+    let list: SongItem[] | undefined = AppStorage.get(APP_STORAGE_KEYS.SONG_LIST);
     if (list) {
       this.songList = list;
     }
@@ -39,7 +40,7 @@ export class AVSessionController {
 
   // [Start initAVSession]
   public async initAVSession() {
-    this.context = AppStorage.get('context');
+    this.context = AppStorage.get(APP_STORAGE_KEYS.CONTEXT);
     if (!this.context) {
       Logger.info(TAG, `session create failed, conext is undefined`);
       return;
@@ -85,7 +86,7 @@ export class AVSessionController {
   // [End setLaunchAbility]
 
   private getDuration() {
-    let duration: number | undefined = AppStorage.get('totalMsTime');
+    let duration: number | undefined = AppStorage.get(APP_STORAGE_KEYS.TOTAL_MS_TIME);
     if (!duration) {
       Logger.error(TAG, 'get duration failed');
       return;
@@ -96,7 +97,7 @@ export class AVSessionController {
   // [Start setAVMetadata]
   // Set metadata
   public async setAVMetadata() {
-    this.musicIndex = AppStorage.get('selectIndex') ? AppStorage.get('selectIndex') : 0;
+    this.musicIndex = AppStorage.get(APP_STORAGE_KEYS.SELECT_INDEX) ?? 0;
     Logger.info(TAG, 'current musicIndex is: ' + this.musicIndex);
     if (this.musicIndex === undefined) {
       this.musicIndex = 0;
@@ -224,7 +225,7 @@ export class AVSessionController {
   // Set favorite state listening.
   private onToggleFavorite: (assetId: string) => void = (assetId: string) => {
     Logger.info(TAG, `on toggleFavorite , do toggleFavorite task`);
-    let isFavorite: boolean | undefined = AppStorage.get('isFavorite');
+    let isFavorite: boolean | undefined = AppStorage.get(APP_STORAGE_KEYS.IS_FAVORITE);
     this.updateFavoriteState(assetId, isFavorite ? !isFavorite : true);
   }
 
@@ -311,7 +312,7 @@ export class AVSessionController {
       return;
     }
     PreferencesUtil.getInstance().preferencesPut(assetId, isFavorite);
-    AppStorage.setOrCreate('isFavorite', isFavorite);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_FAVORITE, isFavorite);
     this.setFavoriteState(isFavorite);
   }
 
@@ -326,7 +327,7 @@ export class AVSessionController {
       isFavorite = PreferencesUtil.getInstance().getValue(assetId) as boolean;
       Logger.info(TAG, `isFavorite: ${isFavorite}`)
     }
-    AppStorage.setOrCreate('isFavorite', isFavorite);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_FAVORITE, isFavorite);
     this.setFavoriteState(isFavorite);
   }
 

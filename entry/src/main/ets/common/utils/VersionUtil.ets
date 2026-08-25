@@ -3,14 +3,13 @@
  * Released under the MIT License.
  * https://opensource.org/licenses/MIT
  */
-
-const VERSION_KEY = 'switchVersion';
+import { APP_STORAGE_KEYS } from "../constants/AppStorageKeys";
 
 /**
  * 获取当前版本号
  */
 export function getCurrentVersion(): number {
-  return AppStorage.get<number>(VERSION_KEY) ?? 0;
+  return AppStorage.get<number>(APP_STORAGE_KEYS.SWITCH_VERSION) ?? 0;
 }
 
 /**
@@ -25,6 +24,6 @@ export function isVersionMatch(version: number): boolean {
  */
 export function incrementVersion(): number {
   const newVersion = getCurrentVersion() + 1;
-  AppStorage.setOrCreate(VERSION_KEY, newVersion);
+  AppStorage.setOrCreate(APP_STORAGE_KEYS.SWITCH_VERSION, newVersion);
   return newVersion;
 }

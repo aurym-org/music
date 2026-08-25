@@ -7,6 +7,7 @@
 import { preferences } from '@kit.ArkData';
 import Logger from './Logger';
 import { common } from '@kit.AbilityKit';
+import { APP_STORAGE_KEYS } from '../constants/AppStorageKeys';
 
 const TAG = 'PreferencesUtil';
 const MY_STORE = 'myStore';
@@ -18,7 +19,7 @@ export class PreferencesUtil {
 
   private get preferences(): preferences.Preferences {
     if (!this._preferences) {
-      const context: common.UIAbilityContext | undefined = AppStorage.get('context');
+      const context: common.UIAbilityContext | undefined = AppStorage.get(APP_STORAGE_KEYS.CONTEXT);
       if (context) {
         let options: preferences.Options = { name: this.storeName };
         this._preferences = preferences.getPreferencesSync(context, options);
@@ -32,15 +33,6 @@ export class PreferencesUtil {
       PreferencesUtil.preferencesUtil = new PreferencesUtil();
     }
     return PreferencesUtil.preferencesUtil;
-  }
-
-  // Clear the data of the preferences
-  preferencesFlush(preferences: preferences.Preferences) {
-    preferences.flush((err) => {
-      if (err) {
-        Logger.error(TAG, `Failed to flush. Code:${err.code}, message:${err.message}`);
-      }
-    })
   }
 
   // Delete the data of the preferences
@@ -62,32 +54,11 @@ export class PreferencesUtil {
     return this.preferences.hasSync(key);
   }
 
-  removePreferencesFromCache(): void {
-    preferences.removePreferencesFromCache(AppStorage.get('context'), MY_STORE);
-  }
-
   getValue(key: string): preferences.ValueType | undefined {
     if (!this.preferences) {
       Logger.info(TAG, 'preferences is undefined');
       return undefined;
     }
     return this.preferences.getSync(key, undefined);
-  }
-
-  getAll(): preferences.ValueType | undefined {
-    if (!this.preferences) {
-      Logger.info(TAG, 'preferences is undefined');
-      return undefined;
-    }
-    return this.preferences.getAllSync();
-  }
-
-  // Remove data by key
-  async removeKey(key: string) {
-    if (!this.preferences) {
-      Logger.info(TAG, 'preferences is undefined');
-      return;
-    }
-    this.preferences.deleteSync(key);
   }
 }

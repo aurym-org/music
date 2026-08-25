@@ -7,7 +7,7 @@
 import { getFavoriteDetail } from '../../../model/SongListData';
 import { SongItem } from '../../../viewmodel/SongData';
 import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
-import { DEFAULT_VOLUME, ERROR_MESSAGE, MusicPlayMode, SILENT_ID, VOLUME_ID, PLAY_MODE_ID } from '../../constants/PlayerConstants';
+import { DEFAULT_VOLUME, MusicPlayMode, SILENT_ID, VOLUME_ID, PLAY_MODE_ID } from '../../constants/PlayerConstants';
 import { ContentConstants } from '../../constants/ContentConstants';
 import Logger from '../Logger';
 import { AVSessionController } from './AVSessionController';
@@ -21,13 +21,14 @@ import { audio } from '@kit.AudioKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { wbiSigner } from '../BiliWbiUtil';
 import { getCurrentVersion, incrementVersion, isVersionMatch } from '../VersionUtil';
+import { APP_STORAGE_KEYS } from '../../constants/AppStorageKeys';
 
 const TAG = 'MediaControlCenter';
 
 export class MediaControlCenter {
   private avSessionController: AVSessionController | undefined = undefined;
   private avPlayerController: AVPlayerController | undefined = undefined;
-  private context: common.UIAbilityContext | undefined = AppStorage.get('context');
+  private context: common.UIAbilityContext | undefined = AppStorage.get(APP_STORAGE_KEYS.CONTEXT);
   private songItemBuilder: SongItemBuilder = new SongItemBuilder();
   private playMode: MusicPlayMode | undefined = undefined;
   private songList: SongItem[] = [];
@@ -38,7 +39,7 @@ export class MediaControlCenter {
   private lastProgressUpdateTime: number = 0;
 
   private setLoading(loading: boolean) {
-    AppStorage.setOrCreate('isLoading', loading);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, loading);
   }
 
   // [Start loadSongAssent]
@@ -55,8 +56,8 @@ export class MediaControlCenter {
       return;
     }
     if (!isVersionMatch(currentVersion)) return;
-    AppStorage.setOrCreate('currentBvid', this.songList[this.musicIndex].bvid);
-    AppStorage.setOrCreate('currentCid', this.songList[this.musicIndex].cid);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_BVID, this.songList[this.musicIndex].bvid);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_CID, this.songList[this.musicIndex].cid);
     await this.avPlayerController.loadSongAssent(this.songList[this.musicIndex].src);
   }
   // [End loadSongAssent]
@@ -101,9 +102,9 @@ export class MediaControlCenter {
     }
     await wbiSigner.fetchAndCacheWbiKeys();
     await getFavoriteDetail(ContentConstants.FAV_ID);
-    this.songList = AppStorage.get('songList')!;
+    this.songList = AppStorage.get(APP_STORAGE_KEYS.SONG_LIST)!;
     if (!this.songList || this.songList.length === 0) {
-      AppStorage.setOrCreate(ERROR_MESSAGE, '歌单为空，请检查网络连接后重试');
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, '歌单为空，请检查网络连接后重试');
       return;
     }
     SongDownloadManager.getInstance().deleteSongsNotIn(this.songList);
@@ -142,16 +143,19 @@ export class MediaControlCenter {
   public async switchToIndex(newIndex: number) {
     this.setLoading(true);
     const currentVersion = incrementVersion();
-    AppStorage.setOrCreate('progress', 0);
-    AppStorage.setOrCreate('currentTime', '00:00');
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.PROGRESS, 0);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_TIME, '00:00');
     this.updateMusicIndex(newIndex);
 
-    await this.stop();
-    if (!isVersionMatch(currentVersion)) return;
-    await this.loadSongAssent();
-    if (!isVersionMatch(currentVersion)) return;
-    await this.play();
-    this.setLoading(false);
+    try {
+      await this.stop();
+      if (!isVersionMatch(currentVersion)) return;
+      await this.loadSongAssent();
+      if (!isVersionMatch(currentVersion)) return;
+      await this.play();
+    } finally {
+      this.setLoading(false);
+    }
   }
 
   // [Start StartContinuousTask]
@@ -285,7 +289,7 @@ export class MediaControlCenter {
   }
 
   private setPlayModeToControlArea(playMode: MusicPlayMode) {
-    AppStorage.setOrCreate('playMode', playMode);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.PLAY_MODE, playMode);
     PreferencesUtil.getInstance().preferencesPut(PLAY_MODE_ID, playMode);
   }
 
@@ -309,7 +313,7 @@ export class MediaControlCenter {
     }
     try {
       this.avPlayerController.setVolume(volume);
-      if (!AppStorage.get('isSilentMode') || volume !== 0) {
+      if (!AppStorage.get(APP_STORAGE_KEYS.IS_SILENT_MODE) || volume !== 0) {
         PreferencesUtil.getInstance().preferencesPut(VOLUME_ID, volume);
       }
     } catch (err) {
@@ -343,9 +347,9 @@ export class MediaControlCenter {
     }
     PreferencesUtil.getInstance().preferencesPut(SILENT_ID, isSilentMode);
     if (isSilentMode) {
-      this.activateAudioSession(audio.AudioConcurrencyMode.CONCURRENCY_MIX_WITH_OTHERS)
+      await this.activateAudioSession(audio.AudioConcurrencyMode.CONCURRENCY_MIX_WITH_OTHERS)
     } else {
-      this.activateAudioSession();
+      await this.activateAudioSession();
     }
     try {
       this.avPlayerController.setSilentMode(isSilentMode);
@@ -363,7 +367,7 @@ export class MediaControlCenter {
     if (isSupportSilent === undefined) {
       isSupportSilent = false;
     }
-    AppStorage.setOrCreate('isSilentMode', isSupportSilent);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_SILENT_MODE, isSupportSilent);
     this.setSilentMode(isSupportSilent)
   }
 
@@ -377,7 +381,7 @@ export class MediaControlCenter {
     }
     Logger.info(TAG, `setVolumeFromPrefer volume is ${volume}`)
     this.setVolume(volume);
-    AppStorage.setOrCreate('currentVolume', volume);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_VOLUME, volume);
   }
 
   private async setPlayModeFromPrefer() {
@@ -405,7 +409,7 @@ export class MediaControlCenter {
   }
 
   public updateProgress(ms: number) {
-    if (AppStorage.get('isLoading') as boolean) {
+    if (AppStorage.get(APP_STORAGE_KEYS.IS_LOADING) as boolean) {
       return;
     }
     if (!this.avSessionController) {
@@ -417,18 +421,18 @@ export class MediaControlCenter {
     }
     this.lastProgressUpdateTime = now;
     this.avSessionController.setProgressState(ms);
-    AppStorage.setOrCreate('progress', ms);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.PROGRESS, ms);
     const newTimeStr = MediaTools.msToCountdownTime(ms);
-    const oldTimeStr = AppStorage.get<string>('currentTime');
+    const oldTimeStr = AppStorage.get<string>(APP_STORAGE_KEYS.CURRENT_TIME);
     if (newTimeStr !== oldTimeStr) {
-      AppStorage.setOrCreate('currentTime', newTimeStr);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_TIME, newTimeStr);
     }
   }
 
   private updateMusicIndex(musicIndex: number) {
     Logger.info(TAG, 'updateMusicIndex ===> ' + musicIndex);
     this.musicIndex = musicIndex;
-    AppStorage.setOrCreate('selectIndex', musicIndex);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.SELECT_INDEX, musicIndex);
     if (!this.avSessionController) {
       return;
     }

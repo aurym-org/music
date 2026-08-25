@@ -10,6 +10,7 @@ import Logger from "../common/utils/Logger";
 import { ContentConstants } from "../common/constants/ContentConstants";
 import { wbiSigner } from "../common/utils/BiliWbiUtil";
 import { BiliMusicParser } from "../common/utils/BiliMusicParser";
+import { APP_STORAGE_KEYS } from "../common/constants/AppStorageKeys";
 
 interface BiliFavDetail {
   code: number,
@@ -202,11 +203,11 @@ async function getFavoriteDetail(mediaId: number, pageSize: number = 40): Promis
       }
     }
 
-    AppStorage.setOrCreate('songList', allSongs);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.SONG_LIST, allSongs);
     Logger.info(TAG, `并发获取完毕`);
   } catch (error) {
     Logger.error(TAG, `获取收藏夹失败:`, error);
-    AppStorage.setOrCreate('errorMessage', `获取收藏夹数据失败: ${error.message}`);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, `获取收藏夹数据失败: ${error.message}`);
     throw new Error(`获取收藏夹数据失败: ${error.message}`);
   }
 }

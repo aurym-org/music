@@ -9,10 +9,11 @@ import { fileIo } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import Logger from './Logger';
 import { SongItem } from '../../viewmodel/SongData';
+import { APP_STORAGE_KEYS } from '../constants/AppStorageKeys';
 
 const TAG = 'SongDownloadManager';
 const SONG_DIR = 'songs';
-const PART_SUFFIX = '.part';
+const PART_SUFFIX = '.m4a.part';
 const FINAL_EXT = '.m4a';
 
 /**
@@ -32,7 +33,7 @@ export class SongDownloadManager {
   }
 
   private getContext(): common.UIAbilityContext | undefined {
-    return AppStorage.get<common.UIAbilityContext>('context');
+    return AppStorage.get<common.UIAbilityContext>(APP_STORAGE_KEYS.CONTEXT);
   }
 
   public getSongDir(): string {
@@ -78,7 +79,7 @@ export class SongDownloadManager {
     this.downloading.delete(bvid);
 
     const mainPath = this.getFilePath(bvid, FINAL_EXT);
-    const partPath = this.getFilePath(bvid, `.m4s${PART_SUFFIX}`);
+    const partPath = this.getFilePath(bvid, PART_SUFFIX);
     this.removeFileQuietly(mainPath);
     this.removeFileQuietly(partPath);
 
@@ -111,7 +112,7 @@ export class SongDownloadManager {
    */
   private async downloadToFile(bvid: string, url: string): Promise<void> {
     this.ensureSongDir();
-    const rawPath = this.getFilePath(bvid, `.m4s${PART_SUFFIX}`);
+    const rawPath = this.getFilePath(bvid, PART_SUFFIX);
     const finalPath = this.getFilePath(bvid, FINAL_EXT);
     if (!rawPath || !finalPath) {
       throw new Error(`Cannot get valid paths for ${bvid}`);

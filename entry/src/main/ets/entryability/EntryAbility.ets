@@ -9,6 +9,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { display, window } from '@kit.ArkUI';
 import { BreakpointConstants } from '../common/constants/BreakpointConstants';
 import { HiAppEventManager } from '../common/utils/HiAppEventManager';
+import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 
 const DOMAIN = 0x0000;
 
@@ -18,7 +19,7 @@ export default class EntryAbility extends UIAbility {
   onCreate(_want: Want, _launchParam: AbilityConstant.LaunchParam): void {
     HiAppEventManager.configure();
     try {
-      AppStorage.setOrCreate('context', this.context)
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.CONTEXT, this.context)
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
@@ -40,7 +41,7 @@ export default class EntryAbility extends UIAbility {
     } else {
       curBp = BreakpointConstants.BREAKPOINT_LG;
     }
-    AppStorage.setOrCreate('currentBreakpoint', curBp);
+    AppStorage.setOrCreate(BreakpointConstants.CURRENT_BREAKPOINT, curBp);
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
@@ -52,19 +53,19 @@ export default class EntryAbility extends UIAbility {
         hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
         return;
       }
-      AppStorage.setOrCreate('windowStage', windowStage);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.WINDOW_STAGE, windowStage);
       windowStage.getMainWindow().then((data: window.Window) => {
         this.windowObj = data;
-        AppStorage.setOrCreate<window.Window>('window', data);
+        AppStorage.setOrCreate<window.Window>(APP_STORAGE_KEYS.WINDOW, data);
         data.setWindowLayoutFullScreen(true);
         const uiContext = data.getUIContext();
-        AppStorage.setOrCreate("uiContext", uiContext);
+        AppStorage.setOrCreate(APP_STORAGE_KEYS.UI_CONTEXT, uiContext);
         let topArea = this.windowObj.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
         let bottomArea = this.windowObj.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
         let topHeight = topArea ? uiContext.px2vp(topArea.topRect.height) : 0;
         let bottomHeight = bottomArea ? uiContext.px2vp(bottomArea.bottomRect.height) : 0;
-        AppStorage.setOrCreate('topHeight', topHeight);
-        AppStorage.setOrCreate('bottomHeight', bottomHeight);
+        AppStorage.setOrCreate(APP_STORAGE_KEYS.TOP_HEIGHT, topHeight);
+        AppStorage.setOrCreate(APP_STORAGE_KEYS.BOTTOM_HEIGHT, bottomHeight);
         this.updateBreakpoint(this.windowObj.getWindowProperties().windowRect.width);
         this.windowObj.on('windowSizeChange', (windowSize: window.Size) => {
           this.updateBreakpoint(windowSize.width);

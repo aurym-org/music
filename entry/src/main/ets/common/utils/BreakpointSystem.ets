@@ -5,6 +5,7 @@
  */
 
 import { mediaquery } from '@kit.ArkUI';
+import { APP_STORAGE_KEYS } from '../constants/AppStorageKeys';
 import { BreakpointConstants } from '../constants/BreakpointConstants';
 
 declare interface BreakPointTypeOption<T> {
@@ -62,7 +63,7 @@ export class BreakpointSystem {
   }
 
   public register(): void {
-    const uiContext: UIContext | undefined = AppStorage.get('uiContext') as UIContext | undefined;
+    const uiContext: UIContext | undefined = AppStorage.get(APP_STORAGE_KEYS.UI_CONTEXT) as UIContext | undefined;
     if (!uiContext) {
       return;
     }

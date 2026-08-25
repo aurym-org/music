@@ -14,8 +14,8 @@ import { AVSessionController } from './AVSessionController';
 import { MediaControlCenter } from './MediaControlCenter';
 import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
 import { SongDownloadManager } from '../SongDownloadManager';
-import { ERROR_MESSAGE } from '../../constants/PlayerConstants';
 import { getCurrentVersion, isVersionMatch } from '../VersionUtil';
+import { APP_STORAGE_KEYS } from '../../constants/AppStorageKeys';
 
 const TAG = 'AVPlayerController'
 
@@ -126,7 +126,7 @@ export class AVPlayerController {
       await this.waitForPrepared();
     } catch (e) {
       Logger.error(TAG, `loadSongAssent failed: ${e.message}`);
-      AppStorage.setOrCreate('isLoading', false);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, false);
       return;
     }
     Logger.info(TAG, `set avPlayer url is ${this.avPlayer.url}, curState is ${this.avPlayer.state}`);
@@ -359,8 +359,8 @@ export class AVPlayerController {
     }
     this.avPlayer.on('error', async (error: BusinessError) => {
       Logger.error(TAG, `errorCallback , code is ${error.code} message is ${error.message}`);
-      const bvid = AppStorage.get<string>('currentBvid');
-      const cid = AppStorage.get<number>('currentCid');
+      const bvid = AppStorage.get<string>(APP_STORAGE_KEYS.CURRENT_BVID);
+      const cid = AppStorage.get<number>(APP_STORAGE_KEYS.CURRENT_CID);
       // 本地文件损坏或不支持时，删掉它再回退到远程，避免下次继续加载坏文件
       if (this.isCurrentLocal && bvid) {
         SongDownloadManager.getInstance().removeLocalSong(bvid);
@@ -380,9 +380,9 @@ export class AVPlayerController {
           Logger.error(TAG, `URL retry failed: ${e.message}`);
         }
       } else {
-        AppStorage.setOrCreate(ERROR_MESSAGE, '播放失败，请检查网络后重试');
+        AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, '播放失败，请检查网络后重试');
       }
-      AppStorage.setOrCreate('isLoading', false);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, false);
     });
   }
   // [End errorCallback]
@@ -407,9 +407,9 @@ export class AVPlayerController {
           break;
         case 'prepared':
           Logger.info(TAG, `state prepared called , resson is ${reason}`);
-          AppStorage.setOrCreate('totalTime', MediaTools.msToCountdownTime(this.avPlayer?.duration!));
-          AppStorage.setOrCreate('totalMsTime', this.avPlayer?.duration!);
-          AppStorage.setOrCreate('progressMax', this.avPlayer?.duration!);
+          AppStorage.setOrCreate(APP_STORAGE_KEYS.TOTAL_TIME, MediaTools.msToCountdownTime(this.avPlayer?.duration!));
+          AppStorage.setOrCreate(APP_STORAGE_KEYS.TOTAL_MS_TIME, this.avPlayer?.duration!);
+          AppStorage.setOrCreate(APP_STORAGE_KEYS.PROGRESS_MAX, this.avPlayer?.duration!);
           if (!this.avSessionController) {
             Logger.error(TAG, 'avSessionController is undefined');
             return;
@@ -517,11 +517,11 @@ export class AVPlayerController {
 
   // Update play state
   private updateIsPlay(isPlay: boolean) {
-    AppStorage.setOrCreate<boolean>('isPlay', isPlay);
+    AppStorage.setOrCreate<boolean>(APP_STORAGE_KEYS.IS_PLAY, isPlay);
     if (!this.avSessionController) {
       return;
     }
-    const currentMs = AppStorage.get<number>('progress') ?? 0;
+    const currentMs = AppStorage.get<number>(APP_STORAGE_KEYS.PROGRESS) ?? 0;
     this.avSessionController.setPlayState(isPlay, currentMs);
   }
 }
