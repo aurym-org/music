@@ -3,7 +3,12 @@
  * Released under the MIT License.
  * https://opensource.org/licenses/MIT
  */
-import { SongInfo } from "../../viewmodel/SongData";
+
+interface SongInfo {
+  title: string,
+  singer: string,
+  confidence?: number
+}
 
 export class BiliMusicParser {
   private noiseKeywords: string[] = [

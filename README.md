@@ -58,8 +58,10 @@ git clone https://github.com/fbotp/AurymMusic.git
 │  │     │  ├──MediaControlCenter.ets                     // 媒体控制中心类
 │  │     │  └──MediaTools.ets                             // 媒体工具处理类
 │  │     ├──BackgroundUtil.ets                            // 后台任务类
+│  │     ├──BiliMusicParser.ets                           // Bili音乐解析类
 │  │     ├──BiliWbiUtil.ets                               // BiliWbi加密工具类
 │  │     ├──BreakpointSystem.ets                          // 断点系统类
+│  │     ├──HiAppEventManager.ets                         // HiApp事件管理类
 │  │     ├──Logger.ets                                    // 日志类
 │  │     ├──PreferencesUtil.ets                           // 首选项工具类
 │  │     ├──ResourceConversion.ets                        // 资源工具类
@@ -77,12 +79,12 @@ git clone https://github.com/fbotp/AurymMusic.git
 │  ├──view
 │  │  ├──ControlAreaComponent.ets                         // 控制区域组件
 │  │  ├──MusicInfoComponent.ets                           // 音乐详情组件
-│  │  └──PlayerInfoComponent.ets                          // 播放详情组件
+│  │  ├──PlayerInfoComponent.ets                          // 播放信息组件
+│  │  ├──PlaylistControl.ets                              // 播放列表组件
+│  │  ├──SpeedControl.ets                                 // 速度控制组件
+│  │  └──VolumeControl.ets                                // 音量控制组件
 │  └──viewmodel
-│     ├──BiliFavDetail.ets                                // Bilibili收藏夹详情
-│     ├──BiliPlayUrl.ets                                  // Bilibili视频播放地址
 │     ├──SongData.ets                                     // 歌曲基础数据类型
-│     ├──SongDataSource.ets                               // 歌曲列表数据源
 │     └──SongItemBuilder.ets                              // 歌曲列表数据构造
 └──entry/src/main/resources                               // 应用静态资源目录
 ```

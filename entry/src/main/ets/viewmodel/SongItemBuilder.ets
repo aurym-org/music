@@ -8,16 +8,29 @@ import { common } from '@kit.AbilityKit';
 import { SongItem } from './SongData';
 import Logger from '../common/utils/Logger';
 import { http } from '@kit.NetworkKit';
-import { BiliPlayUrl } from './BiliPlayUrl';
 import { wbiSigner } from '../common/utils/BiliWbiUtil';
 import { SongDownloadManager } from '../common/utils/SongDownloadManager';
 import { getCurrentVersion, isVersionMatch } from '../common/utils/VersionUtil';
 
 const TAG = 'SongItemBuilder'
 
-export interface CacheData {
-  url: string,
-  expire: number
+interface BiliPlayUrl {
+  code: number,
+  message: string,
+  data: data
+}
+
+interface data {
+  dash: dash
+}
+
+interface dash {
+  audio: audio[]
+}
+
+interface audio {
+  id: number,
+  backupUrl: string[]
 }
 
 export default class SongItemBuilder {

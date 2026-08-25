@@ -8,8 +8,26 @@ import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { util } from '@kit.ArkTS';
 import { http } from '@kit.NetworkKit';
 import { PreferencesUtil } from './PreferencesUtil';
-import { BiliWbiInfo, BiliWbiResponse } from '../../viewmodel/BiliWbi';
 import Logger from './Logger';
+
+interface BiliWbiInfo {
+  imgKey: string,
+  subKey: string,
+  time: number
+}
+
+interface BiliWbiResponse {
+  data: data
+}
+
+interface data {
+  wbi_img: wbi_img
+}
+
+interface wbi_img {
+  img_url: string,
+  sub_url: string
+}
 
 const TAG = 'BiliWbiUtil';
 const MIXIN_KEY_ENC_TAB = [

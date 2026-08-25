@@ -41,9 +41,3 @@ export class SongItem {
    */
   cid: number = 0;
 }
-
-export interface SongInfo {
-  title: string,
-  singer: string,
-  confidence?: number
-}

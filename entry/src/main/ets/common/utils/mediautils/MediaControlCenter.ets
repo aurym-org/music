@@ -6,7 +6,7 @@
 
 import { getFavoriteDetail } from '../../../model/SongListData';
 import { SongItem } from '../../../viewmodel/SongData';
-import SongItemBuilder, { CacheData } from '../../../viewmodel/SongItemBuilder';
+import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
 import { DEFAULT_VOLUME, ERROR_MESSAGE, MusicPlayMode, SILENT_ID, VOLUME_ID, PLAY_MODE_ID } from '../../constants/PlayerConstants';
 import { ContentConstants } from '../../constants/ContentConstants';
 import Logger from '../Logger';
