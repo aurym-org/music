@@ -39,9 +39,13 @@ export struct MusicInfoComponent {
         offset: { md: BreakpointConstants.OFFSET_MD }
       }) {
         Column() {
-          this.CoverInfo()
-          this.MusicInfo()
-          Blank()
+          Column() {
+            this.CoverInfo()
+            this.MusicInfo()
+          }
+          .layoutWeight(1)
+          .justifyContent(FlexAlign.Center)
+          .width('100%')
           ControlAreaComponent()
         }
         .height(StyleConstants.FULL_HEIGHT)
