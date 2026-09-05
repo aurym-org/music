@@ -22,6 +22,8 @@ export class APP_STORAGE_KEYS {
   static readonly TOP_HEIGHT: string = 'topHeight';
   /** 底部安全区高度 */
   static readonly BOTTOM_HEIGHT: string = 'bottomHeight';
+  /** 当前加载图片像素 */
+  static readonly CURRENT_PIXEL_MAP: string = 'current_pixel_map';
 
   // ---- 播放器状态 ----
   /** 当前播放列表 */

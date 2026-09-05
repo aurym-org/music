@@ -104,7 +104,7 @@ export class AVSessionController {
     }
     try {
       if (this.context) {
-        let mediaImage = this.songList[this.musicIndex].label;
+        let mediaImage = AppStorage.get<PixelMap>(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP);
         Logger.info(TAG, 'getPixelMapFromResource success' + JSON.stringify(mediaImage));
         let title = '';
         let artist = '';

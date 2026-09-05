@@ -4,6 +4,7 @@
  * https://opensource.org/licenses/MIT
  */
 
+import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 import { BreakpointConstants } from '../common/constants/BreakpointConstants';
 import { StyleConstants } from '../common/constants/StyleConstants';
 import { BreakpointType } from '../common/utils/BreakpointSystem';
@@ -14,9 +15,9 @@ const TAG = 'VolumeControl';
 
 @Component
 export struct VolumeControl {
-  @StorageLink('isSilentMode') isSilentMode: boolean = false;
-  @StorageLink('currentVolume') volume: number = 0;
-  @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
+  @StorageLink(APP_STORAGE_KEYS.IS_SILENT_MODE) isSilentMode: boolean = false;
+  @StorageLink(APP_STORAGE_KEYS.CURRENT_VOLUME) volume: number = 0;
+  @StorageProp(BreakpointConstants.CURRENT_BREAKPOINT) currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
   @State isShowSheet: boolean = false;
 
   getVolumeSymbol(): Resource {

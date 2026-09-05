@@ -12,18 +12,21 @@ import { StyleConstants } from '../common/constants/StyleConstants';
 import { PlayerConstants } from '../common/constants/PlayerConstants';
 import { SongItem } from '../viewmodel/SongData';
 import Logger from '../common/utils/Logger';
+import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 
 const TAG = 'PlayerInfoComponent'
 
 @Component
 export struct PlayerInfoComponent {
-  @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
-  @StorageLink('songList') songList: SongItem[] = [];
-  @StorageProp('selectIndex') selectIndex: number = 0;
-  @StorageLink('topHeight') topHeight: number = 0;
-  @StorageLink('bottomHeight') bottomHeight: number = 0;
+  @StorageProp(BreakpointConstants.CURRENT_BREAKPOINT) currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
+  @StorageLink(APP_STORAGE_KEYS.SONG_LIST) songList: SongItem[] = [];
+  @StorageProp(APP_STORAGE_KEYS.SELECT_INDEX) selectIndex: number = 0;
+  @StorageLink(APP_STORAGE_KEYS.TOP_HEIGHT) topHeight: number = 0;
+  @StorageLink(APP_STORAGE_KEYS.BOTTOM_HEIGHT) bottomHeight: number = 0;
   @Link isShowPlay: boolean;
-  @StorageLink('isFoldFull') isFoldFull: boolean = false;
+  @StorageLink(APP_STORAGE_KEYS.IS_FOLD_FULL) isFoldFull: boolean = false;
+  @StorageLink(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP) currentPixelMap: PixelMap | undefined = undefined;
+
   private callback: Callback<display.FoldDisplayMode> = (data: display.FoldDisplayMode) => {
     if (canIUse('SystemCapability.Window.SessionManager')) {
       if (data === display.FoldDisplayMode.FOLD_DISPLAY_MODE_FULL) {
@@ -57,7 +60,7 @@ export struct PlayerInfoComponent {
 
   build() {
     Stack() {
-      Image(this.songList[this.selectIndex]?.label)
+      Image(this.currentPixelMap)
         .size(this.currentBreakpoint === BreakpointConstants.BREAKPOINT_LG ?
           {
             width: PlayerConstants.BACK_IMAGE
@@ -89,7 +92,7 @@ export struct PlayerInfoComponent {
         } else if (this.currentBreakpoint === BreakpointConstants.BREAKPOINT_LG) {
           Column() {
             Column() {
-              Image(this.songList[this.selectIndex].label)
+              Image(this.currentPixelMap)
                 .width(StyleConstants.FULL_WIDTH)
                 .aspectRatio(1)
                 .borderRadius($r('app.float.cover_radius'))

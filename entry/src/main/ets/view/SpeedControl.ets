@@ -14,7 +14,7 @@ const TAG = 'SpeedControl';
 
 @Component
 export struct SpeedControl {
-  @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
+  @StorageProp(BreakpointConstants.CURRENT_BREAKPOINT) currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
   @State speed: number = 1;
   @State isShowSheet: boolean = false;
 

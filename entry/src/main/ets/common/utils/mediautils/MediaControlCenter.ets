@@ -22,6 +22,8 @@ import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { wbiSigner } from '../BiliWbiUtil';
 import { getCurrentVersion, incrementVersion, isVersionMatch } from '../VersionUtil';
 import { APP_STORAGE_KEYS } from '../../constants/AppStorageKeys';
+import { image } from '@kit.ImageKit';
+import { http } from '@kit.NetworkKit';
 
 const TAG = 'MediaControlCenter';
 
@@ -37,6 +39,7 @@ export class MediaControlCenter {
   private isInitted = false;
   private static mediaControlFunction: MediaControlCenter;
   private lastProgressUpdateTime: number = 0;
+  private currentPixelMap: PixelMap | undefined = undefined;
 
   private setLoading(loading: boolean) {
     AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, loading);
@@ -58,7 +61,16 @@ export class MediaControlCenter {
     if (!isVersionMatch(currentVersion)) return;
     AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_BVID, this.songList[this.musicIndex].bvid);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_CID, this.songList[this.musicIndex].cid);
-    await this.avPlayerController.loadSongAssent(this.songList[this.musicIndex].src);
+    await this.currentPixelMap?.release();
+    if (!isVersionMatch(currentVersion)) return;
+    const imgPromise = this.getPixelMap(this.songList[this.musicIndex].label);
+    if (!isVersionMatch(currentVersion)) return;
+    await Promise.all([
+      this.avPlayerController.loadSongAssent(this.songList[this.musicIndex].src),
+      imgPromise
+    ]);
+    if (!isVersionMatch(currentVersion)) return;
+    this.avSessionController?.setAVMetadata();
   }
   // [End loadSongAssent]
 
@@ -115,7 +127,6 @@ export class MediaControlCenter {
     ]);
     await this.loadSongAssent();
     this.setLoading(false);
-    this.avSessionController?.setAVMetadata();
     this.setSilentModeFromPrefer();
     this.setVolumeFromPrefer();
     this.setPlayModeFromPrefer();
@@ -155,6 +166,32 @@ export class MediaControlCenter {
       await this.play();
     } finally {
       this.setLoading(false);
+    }
+  }
+
+  private async getPixelMap(url: string): Promise<void> {
+    const httpRequest = http.createHttp();
+    try {
+      const response = await httpRequest.request(url, {
+        method: http.RequestMethod.GET,
+        connectTimeout: 10000,
+        readTimeout: 10000
+      });
+      if (response.responseCode !== 200) {
+        throw new Error(`下载失败: ${response.responseCode}`);
+      }
+
+      const arrayBuffer = response.result as ArrayBuffer;
+      const imageSource = image.createImageSource(arrayBuffer);
+      const pixelMap = await imageSource.createPixelMap({
+        desiredPixelFormat: image.PixelMapFormat.RGBA_8888
+      });
+      const imageInfo = await pixelMap.getImageInfo();
+      Logger.info(TAG, `解码成功: ${imageInfo.size.width}x${imageInfo.size.height}`);
+      this.currentPixelMap = pixelMap;
+      AppStorage.set(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, this.currentPixelMap);
+    } finally {
+      httpRequest.destroy();
     }
   }
 
@@ -436,7 +473,6 @@ export class MediaControlCenter {
     if (!this.avSessionController) {
       return;
     }
-    this.avSessionController.setAVMetadata();
     this.avSessionController.getAndUpdateFavoriteState(this.songList[this.musicIndex].bvid);
   }
 }

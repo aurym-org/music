@@ -4,6 +4,7 @@
  * https://opensource.org/licenses/MIT
  */
 
+import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 import { BreakpointConstants } from '../common/constants/BreakpointConstants';
 import { PlayerConstants } from '../common/constants/PlayerConstants';
 import { StyleConstants } from '../common/constants/StyleConstants';
@@ -14,11 +15,12 @@ import { ControlAreaComponent } from './ControlAreaComponent';
 @Preview
 @Component
 export struct MusicInfoComponent {
-  @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
-  @StorageProp('isFoldFull') isFoldFull: boolean = false;
-  @StorageProp('songList') songList: SongItem[] = [];
-  @StorageProp('selectIndex') selectIndex: number = 0;
-  @StorageLink('isFavorite') isFavorite: boolean = false;
+  @StorageProp(BreakpointConstants.CURRENT_BREAKPOINT) currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
+  @StorageProp(APP_STORAGE_KEYS.IS_FOLD_FULL) isFoldFull: boolean = false;
+  @StorageProp(APP_STORAGE_KEYS.SONG_LIST) songList: SongItem[] = [];
+  @StorageProp(APP_STORAGE_KEYS.SELECT_INDEX) selectIndex: number = 0;
+  @StorageLink(APP_STORAGE_KEYS.IS_FAVORITE) isFavorite: boolean = false;
+  @StorageLink(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP) currentPixelMap: PixelMap | undefined = undefined;
 
   build() {
     GridRow({
@@ -58,7 +60,7 @@ export struct MusicInfoComponent {
   @Builder
   CoverInfo() {
     Row() {
-      Image(this.songList[this.selectIndex]?.label)
+      Image(this.currentPixelMap)
         .width(this.isFoldFull ? '70%': StyleConstants.FULL_WIDTH)
         .aspectRatio(1)
         .objectFit(ImageFit.Contain)

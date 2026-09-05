@@ -24,20 +24,20 @@ const TAG = 'ControlAreaComponent';
 
 @Component
 export struct ControlAreaComponent {
-  @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
-  @StorageLink('isPlay') isPlay: boolean = false;
-  @StorageProp('currentTime') currentTime: string = '00:00';
-  @StorageProp('totalTime') totalTime: string = '00:00';
-  @StorageLink('progress') value: number = 0;
-  @StorageProp('progressMax') max: number = 0;
-  @StorageLink('pageShowTime') pageShowTime: number = 0;
-  @StorageProp('songList') songList: SongItem[] = [];
-  @StorageLink('playMode') playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue(PLAY_MODE_ID) as MusicPlayMode ?? MusicPlayMode.ORDER;
-  @StorageProp('selectIndex') selectIndex: number = 0;
-  @StorageLink('isSilentMode') @Watch('isSilentModeChange') isSilentMode: boolean = false;
-  @StorageLink('isLoading') isLoading: boolean = true;
+  @StorageProp(BreakpointConstants.CURRENT_BREAKPOINT) currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
+  @StorageLink(APP_STORAGE_KEYS.IS_PLAY) isPlay: boolean = false;
+  @StorageProp(APP_STORAGE_KEYS.CURRENT_TIME) currentTime: string = '00:00';
+  @StorageProp(APP_STORAGE_KEYS.TOTAL_TIME) totalTime: string = '00:00';
+  @StorageLink(APP_STORAGE_KEYS.PROGRESS) value: number = 0;
+  @StorageProp(APP_STORAGE_KEYS.PROGRESS_MAX) max: number = 0;
+  @StorageLink(APP_STORAGE_KEYS.PAGE_SHOW_TIME) pageShowTime: number = 0;
+  @StorageProp(APP_STORAGE_KEYS.SONG_LIST) songList: SongItem[] = [];
+  @StorageLink(APP_STORAGE_KEYS.PLAY_MODE) playMode: MusicPlayMode = PreferencesUtil.getInstance().getValue(PLAY_MODE_ID) as MusicPlayMode ?? MusicPlayMode.ORDER;
+  @StorageProp(APP_STORAGE_KEYS.SELECT_INDEX) selectIndex: number = 0;
+  @StorageLink(APP_STORAGE_KEYS.IS_SILENT_MODE) @Watch('isSilentModeChange') isSilentMode: boolean = false;
+  @StorageLink(APP_STORAGE_KEYS.IS_LOADING) isLoading: boolean = true;
   @StorageLink(APP_STORAGE_KEYS.ERROR_MESSAGE) @Watch('onErrorMessage') errorMessage: string = '';
-  @StorageLink('currentVolume') @Watch('currentVolumeChange') volume: number = 0;
+  @StorageLink(APP_STORAGE_KEYS.CURRENT_VOLUME) @Watch('currentVolumeChange') volume: number = 0;
   private resourceConversion: ResourceConversion = new ResourceConversion();
   uiContext: UIContext = this.getUIContext();
   promptAction: PromptAction = this.uiContext.getPromptAction();

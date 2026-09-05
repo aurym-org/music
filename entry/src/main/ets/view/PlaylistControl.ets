@@ -11,15 +11,16 @@ import { BreakpointType } from '../common/utils/BreakpointSystem';
 import Logger from '../common/utils/Logger';
 import { SongItem } from '../viewmodel/SongData';
 import { MediaControlCenter } from '../common/utils/mediautils/MediaControlCenter';
+import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 
 const TAG = 'PlaylistControl';
 
 @Component
 export struct PlaylistControl {
-  @StorageProp('songList') @Watch('onSongListChange') songList: SongItem[] = [];
-  @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
-  @StorageProp('selectIndex') selectIndex: number = 0;
-  @StorageProp('isPlay') isPlay: boolean = false;
+  @StorageProp(APP_STORAGE_KEYS.SONG_LIST) @Watch('onSongListChange') songList: SongItem[] = [];
+  @StorageProp(BreakpointConstants.CURRENT_BREAKPOINT) currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
+  @StorageProp(APP_STORAGE_KEYS.SELECT_INDEX) selectIndex: number = 0;
+  @StorageProp(APP_STORAGE_KEYS.IS_PLAY) isPlay: boolean = false;
   @State isShowSheet: boolean = false;
   @State searchKeyword: string = '';
   @State filteredIndices: number[] = [];
@@ -159,7 +160,7 @@ export struct PlaylistControl {
 @Component
 struct PlayListContainer {
   @Prop isPlay: boolean = false;
-  @StorageProp('currentBreakpoint') currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
+  @StorageProp(BreakpointConstants.CURRENT_BREAKPOINT) currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
   @Prop selectIndex: number = 0;
   @Prop item: SongItem = new SongItem();
   @Prop index: number = 0;
