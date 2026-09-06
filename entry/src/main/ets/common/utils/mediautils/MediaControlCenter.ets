@@ -63,7 +63,7 @@ export class MediaControlCenter {
     AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_CID, this.songList[this.musicIndex].cid);
     await this.currentPixelMap?.release();
     if (!isVersionMatch(currentVersion)) return;
-    this.getPixelMap(this.songList[this.musicIndex].label).catch((err: BusinessError) => {
+    this.getPixelMap(this.songList[this.musicIndex].label, currentVersion).catch((err: BusinessError) => {
       Logger.warn(TAG, '图片加载失败，忽略', err.message);
       return null;
     });
@@ -167,7 +167,8 @@ export class MediaControlCenter {
     }
   }
 
-  private async getPixelMap(url: string): Promise<void> {
+  private async getPixelMap(url: string, currentVersion: number): Promise<void> {
+    if (!isVersionMatch(currentVersion)) return;
     const httpRequest = http.createHttp();
     try {
       const response = await httpRequest.request(url, {
@@ -179,6 +180,7 @@ export class MediaControlCenter {
         throw new Error(`下载失败: ${response.responseCode}`);
       }
 
+      if (!isVersionMatch(currentVersion)) return;
       const arrayBuffer = response.result as ArrayBuffer;
       const imageSource = image.createImageSource(arrayBuffer);
       const pixelMap = await imageSource.createPixelMap({
@@ -186,8 +188,10 @@ export class MediaControlCenter {
       });
       const imageInfo = await pixelMap.getImageInfo();
       Logger.info(TAG, `解码成功: ${imageInfo.size.width}x${imageInfo.size.height}`);
+      if (!isVersionMatch(currentVersion)) return;
       this.currentPixelMap = pixelMap;
       AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, this.currentPixelMap);
+      if (!isVersionMatch(currentVersion)) return;
       this.avSessionController?.setAVMetadata();
     } finally {
       httpRequest.destroy();

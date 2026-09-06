@@ -87,6 +87,7 @@ export struct MusicInfoComponent {
           .opacity(0.86)
           .fontWeight(FontWeight.Bold)
           .fontFamily(PlayerConstants.FONT_FAMILY_BOLD)
+          .width('90%')
         Text(this.songList[this.selectIndex]?.singer)
           .textAlign(TextAlign.Start)
           .fontSize(this.currentBreakpoint === BreakpointConstants.BREAKPOINT_MD && !this.isFoldFull ?
@@ -97,6 +98,7 @@ export struct MusicInfoComponent {
           .fontWeight(FontWeight.Regular)
       }
       .alignItems(HorizontalAlign.Start)
+      .height('15%')
 
       SymbolGlyph(this.isFavorite ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'))
         .fontSize(26)
