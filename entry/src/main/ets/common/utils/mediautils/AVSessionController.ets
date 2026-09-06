@@ -108,7 +108,7 @@ export class AVSessionController {
           Logger.error(TAG, 'mediaControlFunction is undefined in setAVMetadata');
           return;
         }
-        let mediaImage = this.mediaControlCenter.currentPixelMap;
+        let mediaImage = AppStorage.get<PixelMap>(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP);
         Logger.info(TAG, 'getPixelMapFromResource success: ' + JSON.stringify(mediaImage));
         let title = '';
         let artist = '';

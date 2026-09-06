@@ -39,7 +39,7 @@ export class MediaControlCenter {
   private isInitted = false;
   private static mediaControlFunction: MediaControlCenter;
   private lastProgressUpdateTime: number = 0;
-  public currentPixelMap: PixelMap | undefined = undefined;
+  private currentPixelMap: PixelMap | undefined = undefined;
 
   private setLoading(loading: boolean) {
     AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, loading);
@@ -187,7 +187,7 @@ export class MediaControlCenter {
       const imageInfo = await pixelMap.getImageInfo();
       Logger.info(TAG, `解码成功: ${imageInfo.size.width}x${imageInfo.size.height}`);
       this.currentPixelMap = pixelMap;
-      AppStorage.set(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, this.currentPixelMap);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, this.currentPixelMap);
       this.avSessionController?.setAVMetadata();
     } finally {
       httpRequest.destroy();
