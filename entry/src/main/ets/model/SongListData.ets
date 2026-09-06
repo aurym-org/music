@@ -70,7 +70,7 @@ function convertToSongItem(item: BiliFavDetailItemModel, index: number): SongIte
     id: item.id,
     title: info.title ? info.title : item.title,
     singer: info.singer ? info.singer : item.upper.name,
-    label: item.cover + '@672w_378h.webp',
+    label: item.cover + '@672w_378h.avif',
     src: '',
     index: index,
     bvid: item.bvid,
