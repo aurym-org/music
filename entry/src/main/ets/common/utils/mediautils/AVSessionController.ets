@@ -104,8 +104,12 @@ export class AVSessionController {
     }
     try {
       if (this.context) {
-        let mediaImage = AppStorage.get<PixelMap>(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP);
-        Logger.info(TAG, 'getPixelMapFromResource success' + JSON.stringify(mediaImage));
+        if (!this.mediaControlCenter) {
+          Logger.error(TAG, 'mediaControlFunction is undefined in setAVMetadata');
+          return;
+        }
+        let mediaImage = this.mediaControlCenter.currentPixelMap;
+        Logger.info(TAG, 'getPixelMapFromResource success: ' + JSON.stringify(mediaImage));
         let title = '';
         let artist = '';
         if (this.songList[this.musicIndex].title !== undefined) {

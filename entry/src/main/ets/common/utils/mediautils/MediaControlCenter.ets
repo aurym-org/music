@@ -39,7 +39,7 @@ export class MediaControlCenter {
   private isInitted = false;
   private static mediaControlFunction: MediaControlCenter;
   private lastProgressUpdateTime: number = 0;
-  private currentPixelMap: PixelMap | undefined = undefined;
+  public currentPixelMap: PixelMap | undefined = undefined;
 
   private setLoading(loading: boolean) {
     AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, loading);
@@ -63,14 +63,12 @@ export class MediaControlCenter {
     AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_CID, this.songList[this.musicIndex].cid);
     await this.currentPixelMap?.release();
     if (!isVersionMatch(currentVersion)) return;
-    const imgPromise = this.getPixelMap(this.songList[this.musicIndex].label);
+    this.getPixelMap(this.songList[this.musicIndex].label).catch((err: BusinessError) => {
+      Logger.warn(TAG, '图片加载失败，忽略', err.message);
+      return null;
+    });
     if (!isVersionMatch(currentVersion)) return;
-    await Promise.all([
-      this.avPlayerController.loadSongAssent(this.songList[this.musicIndex].src),
-      imgPromise
-    ]);
-    if (!isVersionMatch(currentVersion)) return;
-    this.avSessionController?.setAVMetadata();
+    await this.avPlayerController.loadSongAssent(this.songList[this.musicIndex].src)
   }
   // [End loadSongAssent]
 
@@ -190,6 +188,7 @@ export class MediaControlCenter {
       Logger.info(TAG, `解码成功: ${imageInfo.size.width}x${imageInfo.size.height}`);
       this.currentPixelMap = pixelMap;
       AppStorage.set(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, this.currentPixelMap);
+      this.avSessionController?.setAVMetadata();
     } finally {
       httpRequest.destroy();
     }
