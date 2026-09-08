@@ -63,9 +63,9 @@ git clone https://github.com/fbotp/AurymMusic.git
 │  │     ├──BreakpointSystem.ets                          // 断点系统类
 │  │     ├──HiAppEventManager.ets                         // HiApp事件管理类
 │  │     ├──Logger.ets                                    // 日志类
+│  │     ├──MediaResourceManager.ets                      // 本地歌曲下载管理类
 │  │     ├──PreferencesUtil.ets                           // 首选项工具类
 │  │     ├──ResourceConversion.ets                        // 资源工具类
-│  │     ├──SongDownloadManager.ets                       // 本地歌曲下载管理类
 │  │     └──VersionUtil.ets                               // 歌曲全局版本管理
 │  ├──entryability
 │  │  ├──EntryAbility.ets                                 // Ability的生命周期回调内容

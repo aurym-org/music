@@ -16,7 +16,7 @@ import { AVPlayerController } from './AVPlayerController';
 import { BackgroundUtil } from '../BackgroundUtil';
 import { common } from '@kit.AbilityKit';
 import { PreferencesUtil } from '../PreferencesUtil';
-import { SongDownloadManager } from '../SongDownloadManager';
+import { MediaResourceManager } from '../MediaResourceManager';
 import { audio } from '@kit.AudioKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { wbiSigner } from '../BiliWbiUtil';
@@ -117,7 +117,7 @@ export class MediaControlCenter {
       AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, '歌单为空，请检查网络连接后重试');
       return;
     }
-    SongDownloadManager.getInstance().deleteSongsNotIn(this.songList);
+    MediaResourceManager.getInstance().cleanupOrphanResources(this.songList);
     await Promise.all([
       this.initAvplayer(),
       this.initAVSession(),
@@ -147,6 +147,7 @@ export class MediaControlCenter {
     } catch (err) {
       Logger.error(TAG, `release failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
     }
+    BackgroundUtil.stopContinuousTask(this.context!);
   }
 
   public async switchToIndex(newIndex: number) {
@@ -169,32 +170,33 @@ export class MediaControlCenter {
 
   private async getPixelMap(url: string, currentVersion: number): Promise<void> {
     if (!isVersionMatch(currentVersion)) return;
-    const httpRequest = http.createHttp();
-    try {
-      const response = await httpRequest.request(url, {
-        method: http.RequestMethod.GET,
-        connectTimeout: 10000,
-        readTimeout: 10000
-      });
-      if (response.responseCode !== 200) {
-        throw new Error(`下载失败: ${response.responseCode}`);
-      }
 
-      if (!isVersionMatch(currentVersion)) return;
-      const arrayBuffer = response.result as ArrayBuffer;
-      const imageSource = image.createImageSource(arrayBuffer);
+    const bvid = this.songList[this.musicIndex].bvid;
+    const mediaMgr = MediaResourceManager.getInstance();
+
+    if (!isVersionMatch(currentVersion)) return;
+    if (!mediaMgr.hasCover(bvid)) {
+      await mediaMgr.downloadCover(bvid, url);
+      Logger.info(TAG, `封面从网络加载并缓存: ${bvid}`);
+    }
+    try {
+      const localCoverPath = mediaMgr.getCoverPath(bvid);
+      const imageSource = image.createImageSource(localCoverPath);
       const pixelMap = await imageSource.createPixelMap({
         desiredPixelFormat: image.PixelMapFormat.RGBA_8888
       });
-      const imageInfo = await pixelMap.getImageInfo();
-      Logger.info(TAG, `解码成功: ${imageInfo.size.width}x${imageInfo.size.height}`);
+
       if (!isVersionMatch(currentVersion)) return;
       this.currentPixelMap = pixelMap;
       AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, this.currentPixelMap);
-      if (!isVersionMatch(currentVersion)) return;
       this.avSessionController?.setAVMetadata();
-    } finally {
-      httpRequest.destroy();
+      Logger.info(TAG, `封面从本地加载: ${bvid}`);
+      return;
+    } catch (e) {
+      Logger.warn(TAG, `本地封面读取失败: ${e.message}`);
+      this.currentPixelMap = undefined;
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, this.currentPixelMap);
+      mediaMgr.removeCover(bvid);
     }
   }
 
@@ -227,7 +229,6 @@ export class MediaControlCenter {
     } catch (err) {
       Logger.error(TAG, `pause failed: code is ${JSON.stringify(err.code)},message is ${JSON.stringify(err.message)}`)
     }
-    BackgroundUtil.stopContinuousTask(this.context!);
   }
 
   // [End StartContinuousTask]

@@ -88,6 +88,8 @@ export struct MusicInfoComponent {
           .fontWeight(FontWeight.Bold)
           .fontFamily(PlayerConstants.FONT_FAMILY_BOLD)
           .width('90%')
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(this.songList[this.selectIndex]?.singer)
           .textAlign(TextAlign.Start)
           .fontSize(this.currentBreakpoint === BreakpointConstants.BREAKPOINT_MD && !this.isFoldFull ?

@@ -9,7 +9,7 @@ import { SongItem } from './SongData';
 import Logger from '../common/utils/Logger';
 import { http } from '@kit.NetworkKit';
 import { wbiSigner } from '../common/utils/BiliWbiUtil';
-import { SongDownloadManager } from '../common/utils/SongDownloadManager';
+import { MediaResourceManager } from '../common/utils/MediaResourceManager';
 import { getCurrentVersion, isVersionMatch } from '../common/utils/VersionUtil';
 import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 
@@ -90,10 +90,10 @@ export default class SongItemBuilder {
       return;
     }
 
-    const songStore = SongDownloadManager.getInstance();
-    if (songStore.hasLocalSong(bvid)) {
+    const mediaMgr = MediaResourceManager.getInstance();
+    if (mediaMgr.hasSong(bvid)) {
       if (!isVersionMatch(currentVersion)) return;
-      this.songItem.src = songStore.getLocalPath(bvid);
+      this.songItem.src = mediaMgr.getSongPath(bvid);
       Logger.info(TAG, 'MediaAssetBuilder build local song:' + this.songItem.src);
       return;
     }
@@ -103,7 +103,7 @@ export default class SongItemBuilder {
       const targetAudioUrl = await this.getBiliPlayUrl(bvid, this.songItem.cid);
       if (!isVersionMatch(currentVersion)) return;
       this.songItem.src = targetAudioUrl;
-      SongDownloadManager.getInstance().startDownload(bvid, targetAudioUrl);
+      mediaMgr.downloadSong(bvid, targetAudioUrl);
       Logger.info(TAG, 'MediaAssetBuilder build realUrl:' + this.songItem.src);
     } catch (error) {
       Logger.error(TAG, `MediaAssetBuilder build error: ${error.message}`);

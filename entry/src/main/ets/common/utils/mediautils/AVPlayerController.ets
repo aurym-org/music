@@ -13,7 +13,7 @@ import { MediaTools } from './MediaTools';
 import { AVSessionController } from './AVSessionController';
 import { MediaControlCenter } from './MediaControlCenter';
 import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
-import { SongDownloadManager } from '../SongDownloadManager';
+import { MediaResourceManager } from '../MediaResourceManager';
 import { getCurrentVersion, isVersionMatch } from '../VersionUtil';
 import { APP_STORAGE_KEYS } from '../../constants/AppStorageKeys';
 
@@ -363,7 +363,7 @@ export class AVPlayerController {
       const cid = AppStorage.get<number>(APP_STORAGE_KEYS.CURRENT_CID);
       // 本地文件损坏或不支持时，删掉它再回退到远程，避免下次继续加载坏文件
       if (this.isCurrentLocal && bvid) {
-        SongDownloadManager.getInstance().removeLocalSong(bvid);
+        MediaResourceManager.getInstance().removeSong(bvid);
         this.isCurrentLocal = false;
       }
       if (bvid && cid !== undefined && this.urlRetryCount < AVPlayerController.MAX_URL_RETRY) {
@@ -372,7 +372,7 @@ export class AVPlayerController {
           const songItemBuilder = new SongItemBuilder();
           const url = await songItemBuilder.getBiliPlayUrl(bvid, cid);
           if (this.isCurrentLocal && bvid) {
-            SongDownloadManager.getInstance().startDownload(bvid, url);
+            MediaResourceManager.getInstance().downloadSong(bvid, url);
           }
           this.waitPlay = true;
           await this.setPlayerUrl(url);
