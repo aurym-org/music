@@ -17,14 +17,14 @@ interface BiliWbiInfo {
 }
 
 interface BiliWbiResponse {
-  data: data
+  data: BiliWbiData
 }
 
-interface data {
-  wbi_img: wbi_img
+interface BiliWbiData {
+  wbi_img: BiliWbiImage
 }
 
-interface wbi_img {
+interface BiliWbiImage {
   img_url: string,
   sub_url: string
 }
@@ -68,31 +68,41 @@ class WbiSigner {
       }
 
       const httpRequest = http.createHttp();
-      const response = await httpRequest.request('https://api.bilibili.com/x/web-interface/nav', {
-        method: http.RequestMethod.GET,
-        header: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': 'https://www.bilibili.com/'
-        }
-      });
+      try {
+        const response = await httpRequest.request('https://api.bilibili.com/x/web-interface/nav', {
+          method: http.RequestMethod.GET,
+          header: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://www.bilibili.com/'
+          },
+          connectTimeout: 10000,
+          readTimeout: 10000
+        });
 
-      if (response.responseCode === 200) {
+        if (response.responseCode !== 200) {
+          throw new Error(`WBI key request failed: HTTP ${response.responseCode}`);
+        }
         const data: BiliWbiResponse = JSON.parse(response.result as string);
         const imgUrl: string = data.data.wbi_img.img_url;
         const subUrl: string = data.data.wbi_img.sub_url;
-        if (imgUrl && subUrl) {
-          this.imgKey = this.extractKeyFromUrl(imgUrl);
-          this.subKey = this.extractKeyFromUrl(subUrl);
-          this.mixinKey = this.generateMixinKey(this.imgKey, this.subKey);
-          await this.cacheKeys(this.imgKey, this.subKey);
-          Logger.info(TAG, 'WBI keys fetched and cached');
-        } else {
-          Logger.error(TAG, 'Failed to parse WBI keys from nav response');
+        if (!imgUrl || !subUrl) {
+          throw new Error('WBI key fields are missing from nav response');
         }
+
+        this.imgKey = this.extractKeyFromUrl(imgUrl);
+        this.subKey = this.extractKeyFromUrl(subUrl);
+        this.mixinKey = this.generateMixinKey(this.imgKey, this.subKey);
+        if (!this.mixinKey) {
+          throw new Error('Failed to generate WBI mixin key');
+        }
+        await this.cacheKeys(this.imgKey, this.subKey);
+        Logger.info(TAG, 'WBI keys fetched and cached');
+      } finally {
+        httpRequest.destroy();
       }
-      httpRequest.destroy();
-    } catch (e) {
-      Logger.error(TAG, 'Error fetching WBI keys', e);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(TAG, `Error fetching WBI keys: ${message}`);
     }
   }
 
@@ -107,9 +117,14 @@ class WbiSigner {
     signedParams.set('wts', wts);
 
     const sortedKeys = Array.from(signedParams.keys()).sort();
-    const queryString = sortedKeys
-      .map(k => `${k}=${encodeURIComponent(signedParams.get(k)!.toString())}`)
-      .join('&');
+    const queryParts: string[] = [];
+    for (const key of sortedKeys) {
+      const value = signedParams.get(key);
+      if (value !== undefined) {
+        queryParts.push(`${key}=${encodeURIComponent(value.toString())}`);
+      }
+    }
+    const queryString = queryParts.join('&');
 
     const wRid = await this.md5(queryString + this.mixinKey);
     signedParams.set('w_rid', wRid);
@@ -117,9 +132,10 @@ class WbiSigner {
   }
 
   private extractKeyFromUrl(url: string): string {
-    const parts = url.split('/');
-    const filename = parts[parts.length - 1];
-    return filename.split('.')[0];
+    const normalizedUrl = url.split('?')[0].split('#')[0];
+    const filename = normalizedUrl.substring(normalizedUrl.lastIndexOf('/') + 1);
+    const key = filename.split('.')[0];
+    return key;
   }
 
   private generateMixinKey(imgKey: string, subKey: string): string {
@@ -160,10 +176,14 @@ class WbiSigner {
       const subKey = prefs.getValue(WbiSigner.CACHE_KEY_SUB) as string;
       const timeStr = prefs.getValue(WbiSigner.CACHE_KEY_TIME) as string;
       if (imgKey && subKey && timeStr) {
-        return { imgKey, subKey, time: parseInt(timeStr) };
+        const time = Number(timeStr);
+        if (Number.isFinite(time) && time > 0) {
+          return { imgKey, subKey, time };
+        }
       }
-    } catch (e) {
-      Logger.error(TAG, 'Error reading WBI cache', e);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(TAG, `Error reading WBI cache: ${message}`);
     }
     return null;
   }

@@ -15,17 +15,25 @@ const MY_STORE = 'myStore';
 export class PreferencesUtil {
   private static preferencesUtil: PreferencesUtil;
   private _preferences: preferences.Preferences | undefined;
-  private storeName: string = MY_STORE;
+  private readonly storeName: string = MY_STORE;
 
-  private get preferences(): preferences.Preferences {
+  private get preferences(): preferences.Preferences | undefined {
     if (!this._preferences) {
       const context: common.UIAbilityContext | undefined = AppStorage.get(APP_STORAGE_KEYS.CONTEXT);
-      if (context) {
-        let options: preferences.Options = { name: this.storeName };
+      if (!context) {
+        return undefined;
+      }
+
+      try {
+        const options: preferences.Options = { name: this.storeName };
         this._preferences = preferences.getPreferencesSync(context, options);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.error(TAG, `Failed to open preferences: ${message}`);
+        return undefined;
       }
     }
-    return this._preferences!;
+    return this._preferences;
   }
 
   public static getInstance(): PreferencesUtil {
@@ -35,30 +43,48 @@ export class PreferencesUtil {
     return PreferencesUtil.preferencesUtil;
   }
 
-  // Delete the data of the preferences
-  preferencesPut(key: string, value: preferences.ValueType) {
-    if (!this.preferences) {
-      Logger.info(TAG, 'preferences is undefined');
+  // Persist a value.
+  preferencesPut(key: string, value: preferences.ValueType): void {
+    const store = this.preferences;
+    if (!store) {
+      Logger.warn(TAG, 'Preferences store is unavailable; write skipped');
       return;
     }
-    this.preferences.putSync(key, value);
-    this.preferences.flushSync();
+    try {
+      store.putSync(key, value);
+      store.flushSync();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(TAG, `Failed to persist preference '${key}': ${message}`);
+    }
   }
 
-  // Determine whether there is a certain data in the preferences
+  // Check whether a key exists.
   preferencesHas(key: string): boolean {
-    if (!this.preferences) {
-      Logger.info(TAG, 'preferences is undefined');
+    const store = this.preferences;
+    if (!store) {
       return false;
     }
-    return this.preferences.hasSync(key);
+    try {
+      return store.hasSync(key);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(TAG, `Failed to read preference existence for '${key}': ${message}`);
+      return false;
+    }
   }
 
   getValue(key: string): preferences.ValueType | undefined {
-    if (!this.preferences) {
-      Logger.info(TAG, 'preferences is undefined');
+    const store = this.preferences;
+    if (!store) {
       return undefined;
     }
-    return this.preferences.getSync(key, undefined);
+    try {
+      return store.getSync(key, undefined);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(TAG, `Failed to read preference '${key}': ${message}`);
+      return undefined;
+    }
   }
 }

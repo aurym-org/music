@@ -15,14 +15,21 @@ export class MediaTools {
   }
 
   static msToCountdownTime(ms: number): string {
-    if (!ms) {
+    const safeMs = Number.isFinite(ms) ? Math.max(0, Math.floor(ms)) : 0;
+    if (safeMs === 0) {
       return '00:00';
     }
-    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-    return `${(days ? MediaTools.fill(days) + ':' : '')}${(hours ? MediaTools.fill(hours) + ':' : '')}${MediaTools.fill(minutes)}:${MediaTools.fill(seconds)}`;
+
+    const millisecondsPerMinute = 1000 * 60;
+    const millisecondsPerHour = millisecondsPerMinute * 60;
+    const millisecondsPerDay = millisecondsPerHour * 24;
+    const days = Math.floor(safeMs / millisecondsPerDay);
+    const hours = Math.floor((safeMs % millisecondsPerDay) / millisecondsPerHour);
+    const minutes = Math.floor((safeMs % millisecondsPerHour) / millisecondsPerMinute);
+    const seconds = Math.floor((safeMs % millisecondsPerMinute) / 1000);
+    const dayPrefix = days > 0 ? `${MediaTools.fill(days)}:` : '';
+    const hourPrefix = hours > 0 || days > 0 ? `${MediaTools.fill(hours)}:` : '';
+    return `${dayPrefix}${hourPrefix}${MediaTools.fill(minutes)}:${MediaTools.fill(seconds)}`;
   }
 }
 // [End media_tools]

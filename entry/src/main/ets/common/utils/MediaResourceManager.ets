@@ -33,7 +33,9 @@ export class MediaResourceManager {
   private readonly PART_SUFFIX = '.part';
 
   // ============ 下载任务管理 ============
-  private downloading: Map<string, Promise<void>> = new Map();
+  private downloadingSongs: Map<string, Promise<void>> = new Map();
+  private downloadingCovers: Map<string, Promise<void>> = new Map();
+  private resourceVersions: Map<string, number> = new Map();
 
   // ============ 单例 ============
   public static getInstance(): MediaResourceManager {
@@ -80,8 +82,9 @@ export class MediaResourceManager {
       fileIo.mkdirSync(root, true);
       fileIo.mkdirSync(this.getSubDir(this.SONG_SUBDIR), true);
       fileIo.mkdirSync(this.getSubDir(this.COVER_SUBDIR), true);
-    } catch (e) {
-      Logger.info(TAG, `mkdir result: ${e.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(TAG, `Failed to create media directories: ${message}`);
     }
   }
 
@@ -89,17 +92,39 @@ export class MediaResourceManager {
   /**
    * 获取歌曲文件完整路径
    */
+  private isValidBvid(bvid: string): boolean {
+    return /^[A-Za-z0-9_-]+$/.test(bvid) && bvid !== '.' && bvid !== '..';
+  }
+
+  private getResourceVersion(key: string): number {
+    return this.resourceVersions.get(key) ?? 0;
+  }
+
+  private isResourceVersionCurrent(key: string, version: number): boolean {
+    return this.getResourceVersion(key) === version;
+  }
+
+  private invalidateResource(key: string): void {
+    this.resourceVersions.set(key, this.getResourceVersion(key) + 1);
+  }
+
   public getSongPath(bvid: string): string {
+    if (!this.isValidBvid(bvid)) {
+      return '';
+    }
     const dir = this.getSubDir(this.SONG_SUBDIR);
-    return `${dir}/${bvid}${this.SONG_EXT}`;
+    return dir ? `${dir}/${bvid}${this.SONG_EXT}` : '';
   }
 
   /**
    * 获取封面文件完整路径
    */
   public getCoverPath(bvid: string): string {
+    if (!this.isValidBvid(bvid)) {
+      return '';
+    }
     const dir = this.getSubDir(this.COVER_SUBDIR);
-    return `${dir}/${bvid}${this.COVER_EXT}`;
+    return dir ? `${dir}/${bvid}${this.COVER_EXT}` : '';
   }
 
   // ============ 资源存在性检查 ============
@@ -130,30 +155,34 @@ export class MediaResourceManager {
    * 下载歌曲（如果未下载且未在下载队列中）
    */
   public downloadSong(bvid: string, url: string): void {
-    if (!bvid || !url) {
-      Logger.warn(TAG, 'downloadSong: bvid or url is empty');
+    if (!this.isValidBvid(bvid) || !url) {
+      Logger.warn(TAG, 'downloadSong skipped: invalid bvid or empty URL');
       return;
     }
     if (this.hasSong(bvid)) {
       Logger.debug(TAG, `Song ${bvid} already exists, skip download`);
       return;
     }
-    if (this.downloading.has(bvid)) {
+    if (this.downloadingSongs.has(bvid)) {
       Logger.debug(TAG, `Song ${bvid} is already downloading`);
       return;
     }
 
     this.ensureDirectories();
-    const task = this.doDownloadSong(bvid, url);
-    this.downloading.set(bvid, task);
+    const resourceVersion = this.getResourceVersion(`song:${bvid}`);
+    const task = this.doDownloadSong(bvid, url, resourceVersion);
+    this.downloadingSongs.set(bvid, task);
     task
       .then(() => {
-        this.downloading.delete(bvid);
-        Logger.info(TAG, `Song ${bvid} downloaded successfully`);
+        if (this.hasSong(bvid)) {
+          Logger.info(TAG, `Song ${bvid} downloaded successfully`);
+        }
       })
-      .catch((err: Error) => {
-        this.downloading.delete(bvid);
-        Logger.error(TAG, `Song ${bvid} download failed: ${err.message}`);
+      .catch((error: Error) => Logger.error(TAG, `Song ${bvid} download failed: ${error.message}`))
+      .finally(() => {
+        if (this.downloadingSongs.get(bvid) === task) {
+          this.downloadingSongs.delete(bvid);
+        }
       });
   }
 
@@ -161,60 +190,104 @@ export class MediaResourceManager {
    * 下载封面（如果未下载，静默执行，不阻塞主流程）
    */
   public async downloadCover(bvid: string, url: string): Promise<void> {
-    if (!bvid || !url) {
-      Logger.warn(TAG, 'downloadCover: bvid or url is empty');
+    if (!this.isValidBvid(bvid) || !url) {
+      Logger.warn(TAG, 'downloadCover skipped: invalid bvid or empty URL');
       return;
     }
     if (this.hasCover(bvid)) {
       Logger.debug(TAG, `Cover ${bvid} already exists, skip download`);
       return;
     }
+    const existingTask = this.downloadingCovers.get(bvid);
+    if (existingTask) {
+      return existingTask;
+    }
 
     this.ensureDirectories();
-    return this.doDownloadCover(bvid, url)
-      .then(() => Logger.info(TAG, `Cover ${bvid} downloaded successfully`))
-      .catch((err: Error) => Logger.error(TAG, `Cover ${bvid} download failed: ${err.message}`));
+    const resourceVersion = this.getResourceVersion(`cover:${bvid}`);
+    const task = this.doDownloadCover(bvid, url, resourceVersion);
+    this.downloadingCovers.set(bvid, task);
+    try {
+      await task;
+      if (this.hasCover(bvid)) {
+        Logger.info(TAG, `Cover ${bvid} downloaded successfully`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(TAG, `Cover ${bvid} download failed: ${message}`);
+    } finally {
+      if (this.downloadingCovers.get(bvid) === task) {
+        this.downloadingCovers.delete(bvid);
+      }
+    }
   }
 
   // ============ 私有下载实现 ============
   /**
    * 下载歌曲（核心逻辑）
    */
-  private async doDownloadSong(bvid: string, url: string): Promise<void> {
+  private async doDownloadSong(bvid: string, url: string, resourceVersion: number): Promise<void> {
+    const resourceKey = `song:${bvid}`;
     const finalPath = this.getSongPath(bvid);
+    if (!finalPath) {
+      throw new Error('Invalid song resource path');
+    }
     const partPath = finalPath + this.PART_SUFFIX;
-
-    // 清理残留文件
-    this.removeFileQuietly(partPath);
-    this.removeFileQuietly(finalPath);
 
     try {
       const buffer = await this.fetchBuffer(url, this.getSongHeaders());
+      if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
+        return;
+      }
       this.writeBufferToFile(partPath, buffer);
+      if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
+        this.removeFileQuietly(partPath);
+        return;
+      }
+      this.removeFileQuietly(finalPath);
       fileIo.renameSync(partPath, finalPath);
-    } catch (e) {
-      this.removeFileQuietly(partPath);
-      throw new Error(`Download song failed: ${e.message}`);
+    } catch (error) {
+      // A removed/restarted download may already have a newer task writing to
+      // the same .part path. Only the task that still owns this resource version
+      // may delete its temporary file.
+      if (this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
+        this.removeFileQuietly(partPath);
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Download song failed: ${message}`);
     }
   }
 
   /**
    * 下载封面（核心逻辑）
    */
-  private async doDownloadCover(bvid: string, url: string): Promise<void> {
+  private async doDownloadCover(bvid: string, url: string, resourceVersion: number): Promise<void> {
+    const resourceKey = `cover:${bvid}`;
     const finalPath = this.getCoverPath(bvid);
+    if (!finalPath) {
+      throw new Error('Invalid cover resource path');
+    }
     const partPath = finalPath + this.PART_SUFFIX;
-
-    this.removeFileQuietly(partPath);
-    this.removeFileQuietly(finalPath);
 
     try {
       const buffer = await this.fetchBuffer(url, this.getCoverHeaders());
+      if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
+        return;
+      }
       this.writeBufferToFile(partPath, buffer);
+      if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
+        this.removeFileQuietly(partPath);
+        return;
+      }
+      this.removeFileQuietly(finalPath);
       fileIo.renameSync(partPath, finalPath);
-    } catch (e) {
-      this.removeFileQuietly(partPath);
-      throw new Error(`Download cover failed: ${e.message}`);
+    } catch (error) {
+      // Do not let an obsolete request remove a newer cover download's .part file.
+      if (this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
+        this.removeFileQuietly(partPath);
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Download cover failed: ${message}`);
     }
   }
 
@@ -293,12 +366,31 @@ export class MediaResourceManager {
 
   // ============ 删除操作 ============
   /**
-   * 删除歌曲及其同名封面（如果有）
+   * 删除本地音频文件，并使同一歌曲正在执行的下载任务失效。
+   */
+  public removeSongFile(bvid: string): void {
+    if (!this.isValidBvid(bvid)) {
+      return;
+    }
+    this.invalidateResource(`song:${bvid}`);
+    this.downloadingSongs.delete(bvid);
+    const songPath = this.getSongPath(bvid);
+    if (songPath) {
+      this.removeFileQuietly(songPath);
+      this.removeFileQuietly(songPath + this.PART_SUFFIX);
+    }
+    Logger.info(TAG, `Removed song file for ${bvid}`);
+  }
+
+  /**
+   * 删除歌曲及其同名封面（如果有）。
    */
   public removeSong(bvid: string): void {
-    this.downloading.delete(bvid);
-    this.removeFileQuietly(this.getSongPath(bvid));
-    this.removeFileQuietly(this.getCoverPath(bvid));
+    if (!this.isValidBvid(bvid)) {
+      return;
+    }
+    this.removeSongFile(bvid);
+    this.removeCover(bvid);
     Logger.info(TAG, `Removed song and cover for ${bvid}`);
   }
 
@@ -306,7 +398,16 @@ export class MediaResourceManager {
    * 删除歌曲封面（如果有）
    */
   public removeCover(bvid: string): void {
-    this.removeFileQuietly(this.getCoverPath(bvid));
+    if (!this.isValidBvid(bvid)) {
+      return;
+    }
+    this.invalidateResource(`cover:${bvid}`);
+    this.downloadingCovers.delete(bvid);
+    const coverPath = this.getCoverPath(bvid);
+    if (coverPath) {
+      this.removeFileQuietly(coverPath);
+      this.removeFileQuietly(coverPath + this.PART_SUFFIX);
+    }
     Logger.info(TAG, `Removed cover for ${bvid}`);
   }
 
@@ -332,8 +433,23 @@ export class MediaResourceManager {
   public cleanupOrphanResources(songList: SongItem[]): void {
     const validBvids = new Set<string>();
     for (const song of songList) {
-      if (song.bvid) {
+      if (this.isValidBvid(song.bvid)) {
         validBvids.add(song.bvid);
+      }
+    }
+
+    // Invalidate in-flight downloads for songs that are no longer in the list.
+    // Otherwise an old request could finish after cleanup and recreate an orphan file.
+    for (const bvid of this.downloadingSongs.keys()) {
+      if (!validBvids.has(bvid)) {
+        this.invalidateResource(`song:${bvid}`);
+        this.downloadingSongs.delete(bvid);
+      }
+    }
+    for (const bvid of this.downloadingCovers.keys()) {
+      if (!validBvids.has(bvid)) {
+        this.invalidateResource(`cover:${bvid}`);
+        this.downloadingCovers.delete(bvid);
       }
     }
 
@@ -351,20 +467,39 @@ export class MediaResourceManager {
     let names: string[] = [];
     try {
       names = fileIo.listFileSync(dir);
-    } catch (e) {
-      Logger.error(TAG, `List dir failed: ${e.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(TAG, `List dir failed: ${message}`);
       return;
     }
 
     for (const name of names) {
+      if (name.endsWith(this.PART_SUFFIX)) {
+        const resourceName = name.substring(0, name.length - this.PART_SUFFIX.length);
+        if (resourceName.endsWith(ext)) {
+          const partBvid = resourceName.substring(0, resourceName.length - ext.length);
+          const isActiveDownload = ext === this.SONG_EXT
+            ? this.downloadingSongs.has(partBvid)
+            : ext === this.COVER_EXT && this.downloadingCovers.has(partBvid);
+
+          // Preserve temporary files owned by a live download for an item that
+          // remains in the playlist. Stale/orphan .part files are still removed.
+          if (this.isValidBvid(partBvid) && validBvids.has(partBvid) && isActiveDownload) {
+            continue;
+          }
+        }
+        this.removeFileQuietly(`${dir}/${name}`);
+        continue;
+      }
       if (!name.endsWith(ext)) continue;
       const bvid = name.substring(0, name.length - ext.length);
       if (validBvids.has(bvid)) continue;
       try {
         this.removeFileQuietly(`${dir}/${name}`);
         Logger.info(TAG, `Deleted orphan: ${name}`);
-      } catch (e) {
-        Logger.error(TAG, `Delete ${name} failed: ${e.message}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.error(TAG, `Delete ${name} failed: ${message}`);
       }
     }
   }

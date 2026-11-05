@@ -6,31 +6,31 @@
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
+/**
+ * Centralized application logger.
+ * All call-site arguments are joined into one public log message so callers
+ * can consistently pass a tag and a message without depending on a fixed
+ * number of format placeholders.
+ */
 class Logger {
-  private domain: number;
-  private prefix: string;
-  private format: string = '%{public}s, %{public}s';
-
-  constructor(prefix: string) {
-    this.prefix = prefix;
-    this.domain = 0xFF00;
-  }
+  private readonly domain: number = 0xFF00;
+  private readonly prefix: string = '[AurymMusic]';
 
   debug(...args: string[]): void {
-    hilog.debug(this.domain, this.prefix, this.format, ...args);
+    hilog.debug(this.domain, this.prefix, '%{public}s', args.join(' '));
   }
 
   info(...args: string[]): void {
-    hilog.info(this.domain, this.prefix, this.format, ...args);
+    hilog.info(this.domain, this.prefix, '%{public}s', args.join(' '));
   }
 
   warn(...args: string[]): void {
-    hilog.warn(this.domain, this.prefix, this.format, ...args);
+    hilog.warn(this.domain, this.prefix, '%{public}s', args.join(' '));
   }
 
   error(...args: string[]): void {
-    hilog.error(this.domain, this.prefix, this.format, ...args);
+    hilog.error(this.domain, this.prefix, '%{public}s', args.join(' '));
   }
 }
 
-export default new Logger('[AurymMusic]');
+export default new Logger();

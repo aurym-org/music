@@ -14,7 +14,6 @@ const TAG = 'Index';
 @Entry
 @Component
 struct Index {
-  @State isShowPlay: boolean = false;
   private breakpointSystem: BreakpointSystem = new BreakpointSystem();
   @State splashOpacity: number = 1.0;
   @State showSplash: boolean = true;
@@ -30,17 +29,24 @@ struct Index {
   private titleTimer?: number;
   private subtitleDelay: number = 400;
   private subtitleTimer?: number;
+  private isPageActive: boolean = false;
 
-  async aboutToAppear() {
+  async aboutToAppear(): Promise<void> {
+    this.isPageActive = true;
     try {
       await MediaControlCenter.getInstance().init();
+      if (!this.isPageActive) {
+        return;
+      }
       this.breakpointSystem.register();
     } catch (error) {
-      Logger.error(TAG, `getInstance failed: ${error}`)
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(TAG, `Initialization failed: ${message}`);
     }
   }
 
   aboutToDisappear(): void {
+    this.isPageActive = false;
     clearTimeout(this.splashTimer);
     clearTimeout(this.titleTimer);
     clearTimeout(this.subtitleTimer);
@@ -50,12 +56,12 @@ struct Index {
 
   build() {
     Stack() {
-      PlayerInfoComponent({ isShowPlay: this.isShowPlay });
+      PlayerInfoComponent();
       if (this.showSplash) {
         Column() {
           Image($r('app.media.foreground'))
             .objectFit(ImageFit.Contain)
-            .width("42%")
+            .width('42%')
             .margin({ bottom: 24 })
           Text() {
             Span('A')
@@ -75,11 +81,11 @@ struct Index {
             .translate({ y: this.subtitleTranslateY })
             .margin({ top: 8 })
         }
-        .width("100%")
-        .height("100%")
+        .width('100%')
+        .height('100%')
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
-        .backgroundColor($r("app.color.start_window_background"))
+        .backgroundColor($r('app.color.start_window_background'))
         .opacity(this.splashOpacity)
         .onAppear(() => {
           this.titleTimer = setTimeout(() => {

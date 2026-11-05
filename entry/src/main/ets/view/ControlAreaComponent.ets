@@ -44,7 +44,7 @@ export struct ControlAreaComponent {
 
   isSilentModeChange() {
     Logger.info(TAG, `isSilentMode is change,current isSilentMode is ${this.isSilentMode}`);
-    MediaControlCenter.getInstance().setSilentMode(this.isSilentMode);
+    void MediaControlCenter.getInstance().setSilentMode(this.isSilentMode);
   }
 
   currentVolumeChange() {

@@ -3,7 +3,7 @@
  * Released under the MIT License.
  * https://opensource.org/licenses/MIT
  */
-import { APP_STORAGE_KEYS } from "../constants/AppStorageKeys";
+import { APP_STORAGE_KEYS } from '../constants/AppStorageKeys';
 
 /**
  * 获取当前版本号

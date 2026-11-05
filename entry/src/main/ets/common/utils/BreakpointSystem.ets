@@ -63,6 +63,9 @@ export class BreakpointSystem {
   }
 
   public register(): void {
+    if (this.smListener || this.mdListener || this.lgListener) {
+      return;
+    }
     const uiContext: UIContext | undefined = AppStorage.get(APP_STORAGE_KEYS.UI_CONTEXT) as UIContext | undefined;
     if (!uiContext) {
       return;
@@ -73,6 +76,7 @@ export class BreakpointSystem {
     this.mdListener.on('change', this.isBreakpointMD);
     this.lgListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_LG);
     this.lgListener.on('change', this.isBreakpointLG);
+
   }
 
   public unregister(): void {
@@ -85,5 +89,8 @@ export class BreakpointSystem {
     if (this.lgListener) {
       this.lgListener.off('change', this.isBreakpointLG);
     }
+    this.smListener = undefined;
+    this.mdListener = undefined;
+    this.lgListener = undefined;
   }
 }

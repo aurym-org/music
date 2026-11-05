@@ -7,23 +7,26 @@
 // [Start background_util]
 import { wantAgent, common } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
-import { BusinessError } from '@kit.BasicServicesKit';
 import Logger from './Logger';
 
 const TAG = 'BackgroundUtil';
 
 export class BackgroundUtil {
+  private static operationPromise: Promise<void> = Promise.resolve();
+  private static operationGeneration: number = 0;
+  private static isRunning: boolean = false;
+
   /**
-   * Start background task.
-   *
-   * @param context
+   * Enqueue background-task operations so a late start cannot run after a stop.
    */
   public static startContinuousTask(context?: common.UIAbilityContext): void {
     if (!context) {
-      Logger.error(TAG, 'startContinuousTask failed', `context undefined`);
+      Logger.warn(TAG, 'Cannot start continuous task: context is unavailable');
       return;
     }
-    let wantAgentInfo: wantAgent.WantAgentInfo = {
+
+    const generation = ++BackgroundUtil.operationGeneration;
+    const wantAgentInfo: wantAgent.WantAgentInfo = {
       wants: [
         {
           bundleName: context.abilityInfo.bundleName,
@@ -35,38 +38,56 @@ export class BackgroundUtil {
       wantAgentFlags: [wantAgent.WantAgentFlags.UPDATE_PRESENT_FLAG]
     };
 
-    wantAgent.getWantAgent(wantAgentInfo).then((wantAgentObj: Object) => {
-      try {
-        backgroundTaskManager.startBackgroundRunning(context,
-          backgroundTaskManager.BackgroundMode.AUDIO_PLAYBACK, wantAgentObj).then(() => {
-          Logger.info(TAG, 'startBackgroundRunning succeeded');
-        }).catch((error: BusinessError) => {
-          Logger.error(TAG, `startBackgroundRunning failed Cause: code ${error.code}`);
-        });
-      } catch (error) {
-        Logger.error(TAG, `startBackgroundRunning failed.message ${(error as BusinessError).message}`);
+    const operation = BackgroundUtil.operationPromise.then(async () => {
+      if (generation !== BackgroundUtil.operationGeneration) {
+        return;
       }
-    })
-      .catch((error: BusinessError) => {
-        Logger.error('this audioRenderer: ', `getWantAgent failed Cause: code ${error.code}`);
-      });
+      if (BackgroundUtil.isRunning) {
+        return;
+      }
+      const wantAgentObj: Object = await wantAgent.getWantAgent(wantAgentInfo);
+      if (generation !== BackgroundUtil.operationGeneration) {
+        return;
+      }
+      await backgroundTaskManager.startBackgroundRunning(
+        context,
+        backgroundTaskManager.BackgroundMode.AUDIO_PLAYBACK,
+        wantAgentObj
+      );
+      BackgroundUtil.isRunning = true;
+      Logger.info(TAG, 'startBackgroundRunning succeeded');
+    });
+
+    BackgroundUtil.operationPromise = operation.then(
+      () => undefined,
+      (error: BusinessError) => {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.error(TAG, `startBackgroundRunning failed: ${message}`);
+      }
+    );
   }
 
   /**
-   * Stop background task.
-   *
-   * @param context
+   * Stop the background task after any earlier start request has settled.
    */
   public static stopContinuousTask(context: common.UIAbilityContext): void {
-    try {
-      backgroundTaskManager.stopBackgroundRunning(context).then(() => {
-        Logger.info('this audioRenderer: ', 'stopBackgroundRunning succeeded');
-      }).catch((error: BusinessError) => {
-        Logger.error('this audioRenderer: ', `stopBackgroundRunning failed Cause: code ${error.code}`);
-      });
-    } catch (error) {
-      Logger.error(TAG, `stopBackgroundRunning failed. message ${error}`);
-    }
+    BackgroundUtil.operationGeneration++;
+    const operation = BackgroundUtil.operationPromise.then(async () => {
+      if (!BackgroundUtil.isRunning) {
+        return;
+      }
+      await backgroundTaskManager.stopBackgroundRunning(context);
+      BackgroundUtil.isRunning = false;
+      Logger.info(TAG, 'stopBackgroundRunning succeeded');
+    });
+
+    BackgroundUtil.operationPromise = operation.then(
+      () => undefined,
+      (error: BusinessError) => {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.error(TAG, `stopBackgroundRunning failed: ${message}`);
+      }
+    );
   }
 }
 

@@ -4,115 +4,168 @@
  * https://opensource.org/licenses/MIT
  */
 
-import { common } from '@kit.AbilityKit';
+import { http } from '@kit.NetworkKit';
 import { SongItem } from './SongData';
 import Logger from '../common/utils/Logger';
-import { http } from '@kit.NetworkKit';
 import { wbiSigner } from '../common/utils/BiliWbiUtil';
 import { MediaResourceManager } from '../common/utils/MediaResourceManager';
 import { getCurrentVersion, isVersionMatch } from '../common/utils/VersionUtil';
 import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 
-const TAG = 'SongItemBuilder'
+const TAG = 'SongItemBuilder';
+const AUDIO_QUALITY_ID = 30216;
 
-interface BiliPlayUrl {
-  code: number,
-  message: string,
-  data: data
+interface BiliPlayUrlResponse {
+  code: number;
+  message: string;
+  data?: BiliPlayUrlData;
 }
 
-interface data {
-  dash: dash
+interface BiliPlayUrlData {
+  dash?: BiliDashData;
 }
 
-interface dash {
-  audio: audio[]
+interface BiliDashData {
+  audio?: BiliAudioStream[];
 }
 
-interface audio {
-  id: number,
-  backupUrl: string[]
+interface BiliAudioStream {
+  id: number;
+  baseUrl?: string;
+  base_url?: string;
+  backupUrl?: string[];
+  backup_url?: string[];
 }
 
+/**
+ * Resolves remote Bilibili media URLs and applies the resolved source to a song.
+ */
 export default class SongItemBuilder {
-  private context: common.UIAbilityContext | undefined = AppStorage.get(APP_STORAGE_KEYS.CONTEXT);
-  private songItem: SongItem | null = null;
+  public async getBiliPlayUrl(
+    bvid: string,
+    cid: number,
+    candidateIndex: number = 0
+  ): Promise<string> {
+    if (!bvid || !Number.isInteger(cid) || cid <= 0) {
+      throw new Error('Invalid Bilibili media identifier');
+    }
 
-  async getBiliPlayUrl(bvid: string, cid: number): Promise<string> {
     const params = new Map<string, string | number>();
     params.set('bvid', bvid);
     params.set('cid', cid);
     params.set('fnval', 16);
     params.set('qn', 16);
-    const signed = await wbiSigner.getSignedParams(params);
+
+    const signedParams = await wbiSigner.getSignedParams(params);
     const queryParts: string[] = [];
-    signed.forEach((value, key) => {
+    signedParams.forEach((value, key) => {
       queryParts.push(`${key}=${encodeURIComponent(value.toString())}`);
     });
-    const url = `https://api.bilibili.com/x/player/wbi/playurl?${queryParts.join('&')}`;
+
+    const requestUrl = `https://api.bilibili.com/x/player/wbi/playurl?${queryParts.join('&')}`;
     const httpRequest = http.createHttp();
     try {
-      const response = await httpRequest.request(url, {
+      const response = await httpRequest.request(requestUrl, {
         method: http.RequestMethod.GET,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
           'Referer': 'https://www.bilibili.com/',
           'Accept-Language': 'zh-CN,zh;q=0.9'
         },
         connectTimeout: 10000,
         readTimeout: 10000
       });
+
       if (response.responseCode !== 200) {
-        throw new Error(`HTTP error: ${response.responseCode}`);
+        throw new Error(`Play URL request failed: HTTP ${response.responseCode}`);
       }
-      const result: BiliPlayUrl = JSON.parse(response.result as string);
+
+      const result: BiliPlayUrlResponse = JSON.parse(response.result as string);
       if (result.code !== 0) {
-        throw new Error(`API error: ${result.message}`);
+        throw new Error(`Bilibili API error: ${result.message || result.code}`);
       }
-      const audio = result.data.dash.audio.find(item => item.id === 30216)!;
-      const rawUrl = audio.backupUrl.find(u => u.includes('upos-'))!;
-      const audioUrl = rawUrl.replace(/^https?:\/\/[^\/]+/, 'https://upos-sz-mirrorali.bilivideo.com');
-      return audioUrl;
+
+      const audioStreams = result.data?.dash?.audio ?? [];
+      const selectedAudio = audioStreams.find((item: BiliAudioStream) => item.id === AUDIO_QUALITY_ID)
+        ?? audioStreams[0];
+      if (!selectedAudio) {
+        throw new Error('No playable audio stream was returned by Bilibili');
+      }
+
+      // Keep the CDN order supplied by Bilibili: baseUrl first, then backupUrl.
+      // A failed request will call this method with an increasing candidateIndex
+      // so retries actually move to another CDN instead of selecting the same URL.
+      const candidateUrls: string[] = [];
+      const appendCandidate = (value: string | undefined): void => {
+        if (typeof value !== 'string') {
+          return;
+        }
+        const normalized = value.trim();
+        if (!/^https?:\/\/[^\/\s]+(?:\/|$)/i.test(normalized)) {
+          return;
+        }
+        if (!candidateUrls.includes(normalized)) {
+          candidateUrls.push(normalized);
+        }
+      };
+
+      appendCandidate(selectedAudio.baseUrl);
+      appendCandidate(selectedAudio.base_url);
+
+      const backupUrls: string[] = [];
+      if (Array.isArray(selectedAudio.backupUrl)) {
+        for (let index = 0; index < selectedAudio.backupUrl.length; index++) {
+          backupUrls.push(selectedAudio.backupUrl[index]);
+        }
+      }
+      if (Array.isArray(selectedAudio.backup_url)) {
+        for (let index = 0; index < selectedAudio.backup_url.length; index++) {
+          backupUrls.push(selectedAudio.backup_url[index]);
+        }
+      }
+      for (const backupUrl of backupUrls) {
+        appendCandidate(backupUrl);
+      }
+
+      if (candidateUrls.length === 0) {
+        throw new Error('The selected audio stream does not contain a playable HTTP(S) URL');
+      }
+
+      const safeCandidateIndex = Number.isInteger(candidateIndex) && candidateIndex >= 0
+        ? candidateIndex
+        : 0;
+      // When Bilibili returns fewer backups than the retry limit, reuse the
+      // last valid address after refreshing its signed URL from the API.
+      const selectedIndex = Math.min(safeCandidateIndex, candidateUrls.length - 1);
+      return candidateUrls[selectedIndex];
     } finally {
       httpRequest.destroy();
     }
   }
 
-  public async build(songItem: SongItem): Promise<void> {
-    const currentVersion = getCurrentVersion();
-    this.songItem = songItem;
-    if (!this.context) {
-      return;
+  public async build(songItem: SongItem, expectedVersion: number = getCurrentVersion()): Promise<void> {
+    if (!songItem.bvid) {
+      throw new Error('Cannot build song source: bvid is empty');
     }
-    const bvid = songItem.bvid;
-    if (!bvid) {
-      Logger.error(TAG, 'MediaAssetBuilder build: bvid is empty');
+    if (!isVersionMatch(expectedVersion)) {
       return;
     }
 
-    const mediaMgr = MediaResourceManager.getInstance();
-    if (mediaMgr.hasSong(bvid)) {
-      if (!isVersionMatch(currentVersion)) return;
-      this.songItem.src = mediaMgr.getSongPath(bvid);
-      Logger.info(TAG, 'MediaAssetBuilder build local song:' + this.songItem.src);
+    const mediaManager = MediaResourceManager.getInstance();
+    if (mediaManager.hasSong(songItem.bvid)) {
+      songItem.src = mediaManager.getSongPath(songItem.bvid);
+      Logger.info(TAG, `Using cached media for ${songItem.bvid}`);
       return;
     }
-    if (!isVersionMatch(currentVersion)) return;
-    try {
-      if (!isVersionMatch(currentVersion)) return;
-      const targetAudioUrl = await this.getBiliPlayUrl(bvid, this.songItem.cid);
-      if (!isVersionMatch(currentVersion)) return;
-      this.songItem.src = targetAudioUrl;
-      mediaMgr.downloadSong(bvid, targetAudioUrl);
-      Logger.info(TAG, 'MediaAssetBuilder build realUrl:' + this.songItem.src);
-    } catch (error) {
-      Logger.error(TAG, `MediaAssetBuilder build error: ${error.message}`);
-      AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, `加载歌曲失败: ${error.message}`);
+
+    const remoteUrl = await this.getBiliPlayUrl(songItem.bvid, songItem.cid);
+    if (!isVersionMatch(expectedVersion)) {
+      return;
     }
-    return;
+
+    songItem.src = remoteUrl;
+    mediaManager.downloadSong(songItem.bvid, remoteUrl);
+    Logger.info(TAG, `Resolved remote media URL for ${songItem.bvid}`);
   }
 
-  public async release(): Promise<void> {
-    this.songItem = null;
-  }
 }

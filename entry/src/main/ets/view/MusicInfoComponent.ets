@@ -61,7 +61,7 @@ export struct MusicInfoComponent {
   CoverInfo() {
     Row() {
       Image(this.currentPixelMap)
-        .width(this.isFoldFull ? '70%': StyleConstants.FULL_WIDTH)
+        .width(this.isFoldFull ? '70%' : StyleConstants.FULL_WIDTH)
         .aspectRatio(1)
         .objectFit(ImageFit.Contain)
         .backgroundColor(Color.Black)
@@ -72,7 +72,7 @@ export struct MusicInfoComponent {
           offsetX: 0,
           offsetY: 8
         })
-        .margin("3vp")
+        .margin('3vp')
     }
   }
 
@@ -108,8 +108,12 @@ export struct MusicInfoComponent {
         .fontColor([this.isFavorite ? Color.Red : Color.White])
         .opacity(0.86)
         .onClick(() => {
-          this.isFavorite = !this.isFavorite;
-          AVSessionController.getInstance().updateFavoriteState(this.songList[this.selectIndex].bvid, this.isFavorite)
+          const currentSong = this.songList[this.selectIndex];
+          if (!currentSong) {
+            return;
+          }
+          const nextFavoriteState = !this.isFavorite;
+          AVSessionController.getInstance().updateFavoriteState(currentSong.bvid, nextFavoriteState);
         })
     }
     .width('100%')

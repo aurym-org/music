@@ -29,7 +29,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
 
   private async playMusic() {
     await MediaControlCenter.getInstance().init();
-    MediaControlCenter.getInstance().play();
+    await MediaControlCenter.getInstance().play();
   }
 
   /**
@@ -37,7 +37,7 @@ export default class InsightIntentExecutorImpl extends InsightIntentExecutor {
    *
    */
   private async playFunc(): Promise<insightIntent.ExecuteResult> {
-    this.playMusic();
+    await this.playMusic();
     return Promise.resolve({
       code: 0,
       result: {

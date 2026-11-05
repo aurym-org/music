@@ -10,7 +10,6 @@ import { ControlAreaComponent } from './ControlAreaComponent';
 import { BreakpointConstants } from '../common/constants/BreakpointConstants';
 import { StyleConstants } from '../common/constants/StyleConstants';
 import { PlayerConstants } from '../common/constants/PlayerConstants';
-import { SongItem } from '../viewmodel/SongData';
 import Logger from '../common/utils/Logger';
 import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 
@@ -19,11 +18,8 @@ const TAG = 'PlayerInfoComponent'
 @Component
 export struct PlayerInfoComponent {
   @StorageProp(BreakpointConstants.CURRENT_BREAKPOINT) currentBreakpoint: string = BreakpointConstants.BREAKPOINT_SM;
-  @StorageLink(APP_STORAGE_KEYS.SONG_LIST) songList: SongItem[] = [];
-  @StorageProp(APP_STORAGE_KEYS.SELECT_INDEX) selectIndex: number = 0;
   @StorageLink(APP_STORAGE_KEYS.TOP_HEIGHT) topHeight: number = 0;
   @StorageLink(APP_STORAGE_KEYS.BOTTOM_HEIGHT) bottomHeight: number = 0;
-  @Link isShowPlay: boolean;
   @StorageLink(APP_STORAGE_KEYS.IS_FOLD_FULL) isFoldFull: boolean = false;
   @StorageLink(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP) currentPixelMap: PixelMap | undefined = undefined;
 
@@ -38,17 +34,18 @@ export struct PlayerInfoComponent {
   };
 
   aboutToAppear(): void {
-    Logger.info(TAG, `currentBreakpoint is ${BreakpointConstants.BREAKPOINT_SM}`)
+    Logger.info(TAG, `currentBreakpoint is ${this.currentBreakpoint}`);
     try {
       if (canIUse('SystemCapability.Window.SessionManager')) {
-        let mode = display.getFoldDisplayMode();
-        if (mode === display.FoldDisplayMode.FOLD_DISPLAY_MODE_FULL) {
-          this.isFoldFull = true;
-        }
+        const mode = display.getFoldDisplayMode();
+        // Always synchronize the initial state. Leaving this unchanged for
+        // non-FULL modes can preserve a stale `true` value after page re-entry.
+        this.isFoldFull = mode === display.FoldDisplayMode.FOLD_DISPLAY_MODE_FULL;
         display.on('foldDisplayModeChange', this.callback);
       }
     } catch (exception) {
-      Logger.error(TAG, `Failed to register callback. Code: ' + ${JSON.stringify(exception)}`);
+      const message = exception instanceof Error ? exception.message : String(exception);
+      Logger.error(TAG, `Failed to register fold display callback: ${message}`);
     }
   }
 

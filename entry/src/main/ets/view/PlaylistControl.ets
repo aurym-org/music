@@ -103,7 +103,7 @@ export struct PlaylistControl {
               selectIndex: this.selectIndex
             })
           }
-        }, (globalIndex: number) => this.songList[globalIndex].bvid)
+        }, (globalIndex: number) => this.songList[globalIndex]?.bvid ?? String(globalIndex))
       }
       .height(StyleConstants.FULL_HEIGHT)
       .width(StyleConstants.FULL_WIDTH)
@@ -170,8 +170,8 @@ struct PlayListContainer {
       Row() {
         if (this.selectIndex === this.index) {
           Image(this.isPlay ? $r('app.media.ic_wave') : $r('app.media.ic_wave_static'))
-            .width($r("app.float.wave_width"))
-            .height($r("app.float.wave_height"))
+            .width($r('app.float.wave_width'))
+            .height($r('app.float.wave_height'))
         }
         Column() {
           Text(this.item.title)
@@ -199,11 +199,16 @@ struct PlayListContainer {
         .layoutWeight(1)
       }
       .onClick(() => {
-        if (this.selectIndex === this.index && this.isPlay) {
-          MediaControlCenter.getInstance().pause();
-        } else {
-          MediaControlCenter.getInstance().switchToIndex(this.index!);
+        const mediaControlCenter = MediaControlCenter.getInstance();
+        if (this.selectIndex === this.index) {
+          if (this.isPlay) {
+            mediaControlCenter.pause();
+          } else {
+            mediaControlCenter.play();
+          }
+          return;
         }
+        mediaControlCenter.switchToIndex(this.index);
       })
       .height($r('app.float.list_item_height'))
       .width(StyleConstants.FULL_WIDTH)
