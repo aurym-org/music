@@ -21,6 +21,14 @@ export class MediaDownloadWriter {
     isCurrent: () => boolean
   ): Promise<void> {
     const request = http.createHttp();
+    let requestDestroyed = false;
+    const destroyRequest = (): void => {
+      if (!requestDestroyed) {
+        requestDestroyed = true;
+        request.destroy();
+      }
+    };
+
     let file: fileIo.File;
     try {
       file = fileIo.openSync(
@@ -28,12 +36,14 @@ export class MediaDownloadWriter {
         fileIo.OpenMode.CREATE | fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.TRUNC
       );
     } catch (error) {
-      request.destroy();
-      throw new Error(error.message);
+      destroyRequest();
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message);
     }
 
     let receivedBytes = 0;
     let writeError: Error | undefined;
+    let cancelled = false;
     let resolveDataEnd: () => void = () => {};
     const dataEnd = new Promise<void>((resolve) => {
       resolveDataEnd = resolve;
@@ -41,7 +51,13 @@ export class MediaDownloadWriter {
     let writeQueue: Promise<void> = Promise.resolve();
 
     const onDataReceive = (chunk: ArrayBuffer): void => {
-      if (chunk.byteLength === 0 || writeError || !isCurrent()) {
+      if (chunk.byteLength === 0 || writeError || cancelled) {
+        return;
+      }
+      if (!isCurrent()) {
+        cancelled = true;
+        resolveDataEnd();
+        destroyRequest();
         return;
       }
       receivedBytes += chunk.byteLength;
@@ -52,7 +68,7 @@ export class MediaDownloadWriter {
       }).catch((error: Error) => {
         writeError = error instanceof Error ? error : new Error(String(error));
         resolveDataEnd();
-        request.destroy();
+        destroyRequest();
       });
     };
     const onDataEnd = (): void => {
@@ -76,13 +92,23 @@ export class MediaDownloadWriter {
         if (writeError) {
           throw writeError;
         }
-        throw new Error(error.message);
+        if (cancelled || !isCurrent()) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(message);
+      }
+      if (cancelled || !isCurrent()) {
+        return;
       }
       if (responseCode !== 200) {
         throw new Error(`HTTP error: ${responseCode}`);
       }
       await dataEnd;
       await writeQueue;
+      if (cancelled || !isCurrent()) {
+        return;
+      }
       if (writeError) {
         throw writeError;
       }
@@ -92,7 +118,7 @@ export class MediaDownloadWriter {
     } finally {
       request.off('dataReceive', onDataReceive);
       request.off('dataEnd', onDataEnd);
-      request.destroy();
+      destroyRequest();
       await writeQueue;
       fileIo.closeSync(file);
     }
