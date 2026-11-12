@@ -11,7 +11,7 @@ import { audio } from '@kit.AudioKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { MediaTools } from './MediaTools';
 import { AVSessionController } from './AVSessionController';
-import { MediaControlCenter } from './MediaControlCenter';
+import { AVPlayerEventCallbacks } from './MediaControllerCallbacks';
 import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
 import { MediaResourceManager } from '../MediaResourceManager';
 import { getCurrentVersion, isVersionMatch } from '../VersionUtil';
@@ -22,6 +22,7 @@ const TAG = 'AVPlayerController';
 export class AVPlayerController {
   public avPlayer?: media.AVPlayer;
   private avSessionController: AVSessionController | undefined = undefined;
+  private eventCallbacks: AVPlayerEventCallbacks | undefined = undefined;
   private currentState: media.AVPlayerState = 'idle';
   private waitPlay: boolean = false;
   private urlRetryCount: number = 0;
@@ -43,6 +44,10 @@ export class AVPlayerController {
   private desiredMutedState: boolean | undefined = undefined;
   private desiredVolume: number | undefined = undefined;
   private desiredSpeed: number | undefined = undefined;
+
+  public setEventCallbacks(callbacks: AVPlayerEventCallbacks | undefined): void {
+    this.eventCallbacks = callbacks;
+  }
 
   public waitForPrepared(expectedVersion: number = getCurrentVersion()): Promise<void> {
     if (!isVersionMatch(expectedVersion)) {
@@ -774,7 +779,7 @@ export class AVPlayerController {
     player.on('timeUpdate', (time: number) => {
       if (this.avPlayer === player && generation === this.initGeneration &&
         this.activeSourceVersion === getCurrentVersion()) {
-        MediaControlCenter.getInstance().updateProgress(time);
+        this.eventCallbacks?.onProgress(time);
       }
     });
   }
@@ -828,7 +833,7 @@ export class AVPlayerController {
         AppStorage.get<boolean>(APP_STORAGE_KEYS.IS_PLAY) === true ||
         // Loading alone does not imply auto-play: the user may have paused
         // while this track was loading. Consult the captured switch intent.
-        MediaControlCenter.getInstance().shouldAutoPlayForLoad(currentVersion);
+        this.eventCallbacks?.shouldAutoPlayForLoad(currentVersion) === true;
       const failedLocalSource = this.isCurrentLocal;
       // A failed local cache is not a failed CDN attempt. Start its recovery
       // from the primary URL; subsequent remote failures consume retry slots.
@@ -951,7 +956,7 @@ export class AVPlayerController {
           this.avSessionController?.setAVMetadata();
           this.applyDesiredPlayerSettings(player);
           if (this.waitPlay) {
-            MediaControlCenter.getInstance().play();
+            this.eventCallbacks?.onPlay();
           }
           if (this.preparedResolve) {
             this.preparedResolve();
@@ -967,14 +972,10 @@ export class AVPlayerController {
           Logger.info(TAG, `state paused called , reason is ${reason}`);
           break;
         case 'completed':
-          // A completed event from an old source can arrive after reset(). Do
-          // not advance the new song unless the native player is still completed.
           if (player.state === 'completed' &&
             this.completedHandledVersion !== this.activeSourceVersion) {
-            // A completion notification may be delivered more than once. Handle
-            // it once per source version so one track cannot skip two songs.
             this.completedHandledVersion = this.activeSourceVersion;
-            void MediaControlCenter.getInstance().playNext();
+            this.eventCallbacks?.onPlayNext();
           } else {
             Logger.debug(TAG, `Ignoring duplicate or stale completed event in state ${player.state}`);
           }
@@ -1015,10 +1016,10 @@ export class AVPlayerController {
       if (interruptEvent.forceType === audio.InterruptForceType.INTERRUPT_FORCE) {
         switch (interruptEvent.hintType) {
           case audio.InterruptHint.INTERRUPT_HINT_PAUSE:
-            MediaControlCenter.getInstance().pause();
+            this.eventCallbacks?.onPause();
             break;
           case audio.InterruptHint.INTERRUPT_HINT_STOP:
-            MediaControlCenter.getInstance().pause();
+            this.eventCallbacks?.onPause();
             break;
           case audio.InterruptHint.INTERRUPT_HINT_DUCK:
             break;
@@ -1030,7 +1031,7 @@ export class AVPlayerController {
       } else if (interruptEvent.forceType === audio.InterruptForceType.INTERRUPT_SHARE) {
         switch (interruptEvent.hintType) {
           case audio.InterruptHint.INTERRUPT_HINT_RESUME:
-            MediaControlCenter.getInstance().play();
+            this.eventCallbacks?.onPlay();
             break;
           default:
             break;
@@ -1071,7 +1072,7 @@ export class AVPlayerController {
       Logger.info(TAG, `Device change reason: ${deviceChangeInfo.changeReason}`);
       if (deviceChangeInfo.changeReason === audio.AudioStreamDeviceChangeReason.REASON_OLD_DEVICE_UNAVAILABLE) {
         Logger.info(TAG, `Device change reason: ${deviceChangeInfo.changeReason}`);
-        MediaControlCenter.getInstance().pause();
+        this.eventCallbacks?.onPause();
       }
     })
   }

@@ -11,7 +11,7 @@ import { SongItem } from '../../../viewmodel/SongData';
 import Logger from '../Logger';
 import { MusicPlayMode } from '../../constants/PlayerConstants';
 import { PreferencesUtil } from '../PreferencesUtil';
-import { MediaControlCenter } from './MediaControlCenter';
+import { AVSessionCommandCallbacks } from './MediaControllerCallbacks';
 import { APP_STORAGE_KEYS } from '../../constants/AppStorageKeys';
 
 const TAG = 'AVSessionController';
@@ -21,7 +21,7 @@ export class AVSessionController {
   private avSession: avSession.AVSession | undefined = undefined;
   private songList: SongItem[] = [];
   private musicIndex: number = 0;
-  private mediaControlCenter: MediaControlCenter | undefined = undefined;
+  private commandCallbacks: AVSessionCommandCallbacks | undefined = undefined;
   private initPromise?: Promise<void>;
   private destroyPromise?: Promise<void>;
   private sessionGeneration: number = 0;
@@ -32,6 +32,10 @@ export class AVSessionController {
     if (list) {
       this.songList = list;
     }
+  }
+
+  public setCommandCallbacks(callbacks: AVSessionCommandCallbacks | undefined): void {
+    this.commandCallbacks = callbacks;
   }
 
   public static getInstance(): AVSessionController {
@@ -92,7 +96,6 @@ export class AVSessionController {
     this.avSession = session;
     this.songList = AppStorage.get(APP_STORAGE_KEYS.SONG_LIST) ?? [];
     this.musicIndex = AppStorage.get(APP_STORAGE_KEYS.SELECT_INDEX) ?? 0;
-    this.mediaControlCenter = MediaControlCenter.getInstance();
 
     try {
       await session.activate();
@@ -221,65 +224,41 @@ export class AVSessionController {
 
   // Set playback listening
   private onPlay: () => void = () => {
-    Logger.info(TAG, `on play , do play task`);
-    if (!this.mediaControlCenter) {
-      Logger.error(TAG, 'mediaControlFunction is undefined in onPlay');
-      return;
-    }
-    this.mediaControlCenter.play();
+    Logger.info(TAG, 'on play, dispatch command');
+    this.commandCallbacks?.play();
   }
   // Set pause listening
   private onPause: () => void = () => {
-    Logger.info(TAG, `on pause , do pause task`);
-    if (!this.mediaControlCenter) {
-      Logger.error(TAG, 'mediaControlFunction is undefined in onPause');
-      return;
-    }
-    this.mediaControlCenter.pause();
+    Logger.info(TAG, 'on pause, dispatch command');
+    this.commandCallbacks?.pause();
   }
   // Set play next song listening.
   private onPlayNext: () => void = () => {
-    Logger.info(TAG, `on playNext , do playNext task`);
-    if (!this.mediaControlCenter) {
-      Logger.error(TAG, 'mediaControlFunction is undefined in onPlayNext');
-      return;
-    }
-    this.mediaControlCenter.playNext();
+    Logger.info(TAG, 'on playNext, dispatch command');
+    this.commandCallbacks?.playNext();
   }
   // Set play previous song listening.
   private onPlayPrevious: () => void = () => {
-    Logger.info(TAG, `on playPrevious , do playPrevious task`);
-    if (!this.mediaControlCenter) {
-      Logger.error(TAG, 'mediaControlFunction is undefined in onPlayPrevious');
-      return;
-    }
-    this.mediaControlCenter.playPrevious();
+    Logger.info(TAG, 'on playPrevious, dispatch command');
+    this.commandCallbacks?.playPrevious();
   }
   // Set seek listening.
   private onSeek: (curMs: number) => void = (curMs: number) => {
-    Logger.info(TAG, `on seek , do seek task`);
-    if (!this.mediaControlCenter) {
-      Logger.error(TAG, 'mediaControlFunction is undefined in onSeek');
-      return;
-    }
-    this.mediaControlCenter.seek(curMs);
+    Logger.info(TAG, 'on seek, dispatch command');
+    this.commandCallbacks?.seek(curMs);
   }
   // Set set loopMode listening.
   private onSetLoopMode: (loopMode: avSession.LoopMode) => void = (loopMode: avSession.LoopMode) => {
-    Logger.info(TAG, `on setLoopMode , do loopMode task`);
-    if (!this.mediaControlCenter) {
-      Logger.error(TAG, 'mediaControlFunction is undefined in onSetLoopMode');
-      return;
-    }
+    Logger.info(TAG, 'on setLoopMode, dispatch command');
     switch (loopMode) {
       case avSession.LoopMode.LOOP_MODE_SINGLE:
-        this.mediaControlCenter.setPlayMode(MusicPlayMode.SINGLE_CYCLE);
+        this.commandCallbacks?.setPlayMode(MusicPlayMode.SINGLE_CYCLE);
         break;
       case avSession.LoopMode.LOOP_MODE_SEQUENCE:
-        this.mediaControlCenter.setPlayMode(MusicPlayMode.ORDER);
+        this.commandCallbacks?.setPlayMode(MusicPlayMode.ORDER);
         break;
       case avSession.LoopMode.LOOP_MODE_SHUFFLE:
-        this.mediaControlCenter.setPlayMode(MusicPlayMode.RANDOM);
+        this.commandCallbacks?.setPlayMode(MusicPlayMode.RANDOM);
         break;
       default:
         break;
@@ -418,7 +397,7 @@ export class AVSessionController {
     // must wait until the exact session instance has completed teardown.
     this.avSession = undefined;
     this.context = undefined;
-    this.mediaControlCenter = undefined;
+    this.commandCallbacks = undefined;
     this.songList = [];
     this.musicIndex = 0;
 

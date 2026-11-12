@@ -104,8 +104,14 @@ export class MediaResourceManager {
     return this.getResourceVersion(key) === version;
   }
 
+  private nextResourceVersion(key: string): number {
+    const version = this.getResourceVersion(key) + 1;
+    this.resourceVersions.set(key, version);
+    return version;
+  }
+
   private invalidateResource(key: string): void {
-    this.resourceVersions.set(key, this.getResourceVersion(key) + 1);
+    this.nextResourceVersion(key);
   }
 
   public getSongPath(bvid: string): string {
@@ -169,7 +175,7 @@ export class MediaResourceManager {
     }
 
     this.ensureDirectories();
-    const resourceVersion = this.getResourceVersion(`song:${bvid}`);
+    const resourceVersion = this.nextResourceVersion(`song:${bvid}`);
     const task = this.doDownloadSong(bvid, url, resourceVersion);
     this.downloadingSongs.set(bvid, task);
     task
@@ -204,7 +210,7 @@ export class MediaResourceManager {
     }
 
     this.ensureDirectories();
-    const resourceVersion = this.getResourceVersion(`cover:${bvid}`);
+    const resourceVersion = this.nextResourceVersion(`cover:${bvid}`);
     const task = this.doDownloadCover(bvid, url, resourceVersion);
     this.downloadingCovers.set(bvid, task);
     try {
@@ -232,14 +238,10 @@ export class MediaResourceManager {
     if (!finalPath) {
       throw new Error('Invalid song resource path');
     }
-    const partPath = finalPath + this.PART_SUFFIX;
+    const partPath = `${finalPath}.${resourceVersion}${this.PART_SUFFIX}`;
 
     try {
-      const buffer = await this.fetchBuffer(url, this.getSongHeaders());
-      if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
-        return;
-      }
-      this.writeBufferToFile(partPath, buffer);
+      await this.downloadToFile(url, this.getSongHeaders(), partPath, resourceKey, resourceVersion);
       if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
         this.removeFileQuietly(partPath);
         return;
@@ -247,12 +249,7 @@ export class MediaResourceManager {
       this.removeFileQuietly(finalPath);
       fileIo.renameSync(partPath, finalPath);
     } catch (error) {
-      // A removed/restarted download may already have a newer task writing to
-      // the same .part path. Only the task that still owns this resource version
-      // may delete its temporary file.
-      if (this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
-        this.removeFileQuietly(partPath);
-      }
+      this.removeFileQuietly(partPath);
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Download song failed: ${message}`);
     }
@@ -267,14 +264,10 @@ export class MediaResourceManager {
     if (!finalPath) {
       throw new Error('Invalid cover resource path');
     }
-    const partPath = finalPath + this.PART_SUFFIX;
+    const partPath = `${finalPath}.${resourceVersion}${this.PART_SUFFIX}`;
 
     try {
-      const buffer = await this.fetchBuffer(url, this.getCoverHeaders());
-      if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
-        return;
-      }
-      this.writeBufferToFile(partPath, buffer);
+      await this.downloadToFile(url, this.getCoverHeaders(), partPath, resourceKey, resourceVersion);
       if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
         this.removeFileQuietly(partPath);
         return;
@@ -282,44 +275,107 @@ export class MediaResourceManager {
       this.removeFileQuietly(finalPath);
       fileIo.renameSync(partPath, finalPath);
     } catch (error) {
-      // Do not let an obsolete request remove a newer cover download's .part file.
-      if (this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
-        this.removeFileQuietly(partPath);
-      }
+      this.removeFileQuietly(partPath);
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Download cover failed: ${message}`);
     }
   }
 
-  // ============ 网络请求 ============
-  /**
-   * 通用的获取 ArrayBuffer 方法
-   */
-  private async fetchBuffer(url: string, headers: Record<string, string>): Promise<ArrayBuffer> {
-    const httpRequest = http.createHttp();
-    let response: http.HttpResponse;
+  // ============ 网络请求与流式落盘 ============
+  private async downloadToFile(
+    url: string,
+    headers: Record<string, string>,
+    path: string,
+    resourceKey: string,
+    resourceVersion: number
+  ): Promise<void> {
+    const request = http.createHttp();
+    let file: fileIo.File;
     try {
-      response = await httpRequest.request(url, {
-        method: http.RequestMethod.GET,
-        header: headers,
-        expectDataType: http.HttpDataType.ARRAY_BUFFER,
-        connectTimeout: 15000,
-        readTimeout: 60000,
-        maxLimit: 100 * 1024 * 1024,
-        maxRedirects: 5
-      });
-    } finally {
-      httpRequest.destroy();
+      file = fileIo.openSync(
+        path,
+        fileIo.OpenMode.CREATE | fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.TRUNC
+      );
+    } catch (error) {
+      request.destroy();
+      throw new Error(error.message);
     }
+    let receivedBytes = 0;
+    let writeError: Error | undefined;
+    let resolveDataEnd: () => void = () => {};
+    const dataEnd = new Promise<void>((resolve) => {
+      resolveDataEnd = resolve;
+    });
+    let writeQueue: Promise<void> = Promise.resolve();
 
-    if (response.responseCode !== 200) {
-      throw new Error(`HTTP error: ${response.responseCode}`);
+    const onDataReceive = (chunk: ArrayBuffer): void => {
+      if (chunk.byteLength === 0 || writeError ||
+        !this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
+        return;
+      }
+      receivedBytes += chunk.byteLength;
+      writeQueue = writeQueue.then(async () => {
+        if (!writeError && this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
+          await this.writeChunk(file.fd, chunk);
+        }
+      }).catch((error: Error) => {
+        writeError = error instanceof Error ? error : new Error(String(error));
+        resolveDataEnd();
+        request.destroy();
+      });
+    };
+    const onDataEnd = (): void => {
+      resolveDataEnd();
+    };
+
+    try {
+      request.on('dataReceive', onDataReceive);
+      request.on('dataEnd', onDataEnd);
+      let responseCode: number;
+      try {
+        responseCode = await request.requestInStream(url, {
+          method: http.RequestMethod.GET,
+          header: headers,
+          connectTimeout: 15000,
+          readTimeout: 60000,
+          maxLimit: 100 * 1024 * 1024,
+          maxRedirects: 5
+        });
+      } catch (error) {
+        if (writeError) {
+          throw writeError;
+        }
+        throw new Error(error.message);
+      }
+      if (responseCode !== 200) {
+        throw new Error(`HTTP error: ${responseCode}`);
+      }
+      await dataEnd;
+      await writeQueue;
+      if (writeError) {
+        throw writeError;
+      }
+      if (receivedBytes === 0) {
+        throw new Error('Empty response body');
+      }
+    } finally {
+      request.off('dataReceive', onDataReceive);
+      request.off('dataEnd', onDataEnd);
+      request.destroy();
+      await writeQueue;
+      fileIo.closeSync(file);
     }
-    const buffer = response.result as ArrayBuffer;
-    if (!buffer || buffer.byteLength === 0) {
-      throw new Error('Empty response body');
+  }
+
+  private async writeChunk(fd: number, chunk: ArrayBuffer): Promise<void> {
+    let written = 0;
+    while (written < chunk.byteLength) {
+      const count = await fileIo.write(fd, chunk.slice(written));
+      if (count <= 0) {
+        throw new Error('Write file failed: no bytes written');
+      }
+      written += count;
     }
-    return buffer;
   }
 
   /**
@@ -341,29 +397,6 @@ export class MediaResourceManager {
     };
   }
 
-  // ============ 文件写入 ============
-  /**
-   * 将 ArrayBuffer 写入文件
-   */
-  private writeBufferToFile(path: string, buffer: ArrayBuffer): void {
-    const file = fileIo.openSync(
-      path,
-      fileIo.OpenMode.CREATE | fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.TRUNC
-    );
-    try {
-      let written = 0;
-      while (written < buffer.byteLength) {
-        const count = fileIo.writeSync(file.fd, buffer.slice(written));
-        if (count <= 0) {
-          throw new Error('Write file failed: no bytes written');
-        }
-        written += count;
-      }
-    } finally {
-      fileIo.closeSync(file);
-    }
-  }
-
   // ============ 删除操作 ============
   /**
    * 删除本地音频文件，并使同一歌曲正在执行的下载任务失效。
@@ -377,7 +410,7 @@ export class MediaResourceManager {
     const songPath = this.getSongPath(bvid);
     if (songPath) {
       this.removeFileQuietly(songPath);
-      this.removeFileQuietly(songPath + this.PART_SUFFIX);
+      this.removePartFiles(songPath);
     }
     Logger.info(TAG, `Removed song file for ${bvid}`);
   }
@@ -406,9 +439,27 @@ export class MediaResourceManager {
     const coverPath = this.getCoverPath(bvid);
     if (coverPath) {
       this.removeFileQuietly(coverPath);
-      this.removeFileQuietly(coverPath + this.PART_SUFFIX);
+      this.removePartFiles(coverPath);
     }
     Logger.info(TAG, `Removed cover for ${bvid}`);
+  }
+
+  private removePartFiles(resourcePath: string): void {
+    const dir = resourcePath.substring(0, resourcePath.lastIndexOf('/'));
+    const filePrefix = resourcePath.substring(resourcePath.lastIndexOf('/') + 1) + '.';
+    if (!dir) {
+      return;
+    }
+    try {
+      for (const name of fileIo.listFileSync(dir)) {
+        if (name.startsWith(filePrefix) && name.endsWith(this.PART_SUFFIX)) {
+          this.removeFileQuietly(`${dir}/${name}`);
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(TAG, `Failed to list temporary files: ${message}`);
+    }
   }
 
   /**
@@ -475,17 +526,22 @@ export class MediaResourceManager {
 
     for (const name of names) {
       if (name.endsWith(this.PART_SUFFIX)) {
-        const resourceName = name.substring(0, name.length - this.PART_SUFFIX.length);
-        if (resourceName.endsWith(ext)) {
-          const partBvid = resourceName.substring(0, resourceName.length - ext.length);
-          const isActiveDownload = ext === this.SONG_EXT
-            ? this.downloadingSongs.has(partBvid)
-            : ext === this.COVER_EXT && this.downloadingCovers.has(partBvid);
+        const tempName = name.substring(0, name.length - this.PART_SUFFIX.length);
+        const versionSeparator = tempName.lastIndexOf('.');
+        if (versionSeparator > 0 && /^\d+$/.test(tempName.substring(versionSeparator + 1))) {
+          const resourceName = tempName.substring(0, versionSeparator);
+          if (resourceName.endsWith(ext)) {
+            const partBvid = resourceName.substring(0, resourceName.length - ext.length);
+            const key = ext === this.SONG_EXT ? `song:${partBvid}` : `cover:${partBvid}`;
+            const version = Number(tempName.substring(versionSeparator + 1));
+            const isActiveDownload = ext === this.SONG_EXT
+              ? this.downloadingSongs.has(partBvid)
+              : ext === this.COVER_EXT && this.downloadingCovers.has(partBvid);
 
-          // Preserve temporary files owned by a live download for an item that
-          // remains in the playlist. Stale/orphan .part files are still removed.
-          if (this.isValidBvid(partBvid) && validBvids.has(partBvid) && isActiveDownload) {
-            continue;
+            if (this.isValidBvid(partBvid) && validBvids.has(partBvid) && isActiveDownload &&
+              this.isResourceVersionCurrent(key, version)) {
+              continue;
+            }
           }
         }
         this.removeFileQuietly(`${dir}/${name}`);

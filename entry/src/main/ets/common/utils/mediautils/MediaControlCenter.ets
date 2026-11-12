@@ -13,6 +13,7 @@ import Logger from '../Logger';
 import { AVSessionController } from './AVSessionController';
 import { MediaTools } from './MediaTools';
 import { AVPlayerController } from './AVPlayerController';
+import { AVPlayerEventCallbacks, AVSessionCommandCallbacks } from './MediaControllerCallbacks';
 import { BackgroundUtil } from '../BackgroundUtil';
 import { common } from '@kit.AbilityKit';
 import { PreferencesUtil } from '../PreferencesUtil';
@@ -121,11 +122,28 @@ export class MediaControlCenter {
 
   private async initAVSession(): Promise<void> {
     this.avSessionController = AVSessionController.getInstance();
+    const callbacks: AVSessionCommandCallbacks = {
+      play: () => { void this.play(); },
+      pause: () => { void this.pause(); },
+      playNext: () => { void this.playNext(); },
+      playPrevious: () => { void this.playPrevious(); },
+      seek: (position: number) => { void this.seek(position); },
+      setPlayMode: (mode: MusicPlayMode) => this.setPlayMode(mode)
+    };
+    this.avSessionController.setCommandCallbacks(callbacks);
     await this.avSessionController.initAVSession();
   }
 
   private async initAvplayer(): Promise<void> {
     this.avPlayerController = AVPlayerController.getInstance();
+    const callbacks: AVPlayerEventCallbacks = {
+      onProgress: (time: number) => this.updateProgress(time),
+      shouldAutoPlayForLoad: (version: number) => this.shouldAutoPlayForLoad(version),
+      onPlay: () => { void this.play(); },
+      onPause: () => { void this.pause(); },
+      onPlayNext: () => { void this.playNext(); }
+    };
+    this.avPlayerController.setEventCallbacks(callbacks);
     await this.avPlayerController.initAVPlayer();
   }
 
@@ -292,12 +310,14 @@ export class MediaControlCenter {
     this.initPromise = undefined;
 
     if (this.avSessionController) {
+      this.avSessionController.setCommandCallbacks(undefined);
       this.avSessionController.unregisterSessionListener().catch((error: BusinessError) => {
         const message = error instanceof Error ? error.message : String(error);
         Logger.warn(TAG, `AVSession release failed: ${message}`);
       });
     }
     if (this.avPlayerController) {
+      this.avPlayerController.setEventCallbacks(undefined);
       this.avPlayerController.release().catch((error: BusinessError) => {
         const message = error instanceof Error ? error.message : String(error);
         Logger.error(TAG, `AVPlayer release failed: ${message}`);
@@ -651,14 +671,21 @@ export class MediaControlCenter {
     const normalizedVolume = Math.max(0, Math.min(100, requestedVolume));
     try {
       this.avPlayerController?.setVolume(normalizedVolume);
-      if (normalizedVolume > 0) {
-        PreferencesUtil.getInstance().preferencesPut(VOLUME_ID, normalizedVolume);
-      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       Logger.error(TAG, `set volume failed: ${message}`);
     }
-    Logger.info(TAG, `setVolume is ${normalizedVolume}`);
+  }
+
+  public persistVolume(volume: number): void {
+    if (!Number.isFinite(volume) || volume <= 0) {
+      return;
+    }
+    const normalizedVolume = Math.min(100, volume);
+    const preferences = PreferencesUtil.getInstance();
+    if (preferences.getValue(VOLUME_ID) !== normalizedVolume) {
+      preferences.preferencesPut(VOLUME_ID, normalizedVolume);
+    }
   }
 
   public setSpeed(speed: number): void {

@@ -83,9 +83,12 @@ export struct VolumeControl {
         })
           .showTips(false)
           .layoutWeight(1)
-          .onChange((value: number, _mode: SliderChangeMode) => {
+          .onChange((value: number, mode: SliderChangeMode) => {
             this.isSilentMode = value === 0;
             this.volume = value;
+            if (mode === SliderChangeMode.End) {
+              MediaControlCenter.getInstance().persistVolume(value);
+            }
           })
       }
       .padding({ left: 15, right: 15 })

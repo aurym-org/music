@@ -113,6 +113,7 @@ export struct ControlAreaComponent {
                 Number.isFinite(storedVolume) && storedVolume > 0
                 ? Math.min(100, storedVolume)
                 : 10;
+              MediaControlCenter.getInstance().persistVolume(this.volume);
             }
           })
 
