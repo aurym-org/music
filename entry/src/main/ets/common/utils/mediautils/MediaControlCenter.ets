@@ -640,7 +640,7 @@ export class MediaControlCenter {
 
   public getVolume(): number {
     const volume = PreferencesUtil.getInstance().getValue(VOLUME_ID) as number | undefined;
-    if (volume === undefined || !Number.isFinite(volume)) {
+    if (volume === undefined || !Number.isFinite(volume) || volume <= 0) {
       return DEFAULT_VOLUME;
     }
     return Math.max(0, Math.min(100, volume));
@@ -651,7 +651,7 @@ export class MediaControlCenter {
     const normalizedVolume = Math.max(0, Math.min(100, requestedVolume));
     try {
       this.avPlayerController?.setVolume(normalizedVolume);
-      if (!AppStorage.get(APP_STORAGE_KEYS.IS_SILENT_MODE) || normalizedVolume !== 0) {
+      if (normalizedVolume > 0) {
         PreferencesUtil.getInstance().preferencesPut(VOLUME_ID, normalizedVolume);
       }
     } catch (error) {
@@ -725,7 +725,7 @@ export class MediaControlCenter {
       return;
     }
     const storedVolume = PreferencesUtil.getInstance().getValue(VOLUME_ID);
-    const volume = typeof storedVolume === 'number' && Number.isFinite(storedVolume)
+    const volume = typeof storedVolume === 'number' && Number.isFinite(storedVolume) && storedVolume > 0
       ? Math.max(0, Math.min(100, storedVolume))
       : DEFAULT_VOLUME;
     Logger.info(TAG, `setVolumeFromPrefer volume is ${volume}`);

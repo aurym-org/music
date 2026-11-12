@@ -153,12 +153,7 @@ export class AVPlayerController {
     if (this.isLocalSource(url)) {
       const localFile = fileIo.openSync(url, fileIo.OpenMode.READ_ONLY);
       this.localFile = localFile;
-      const fileDescriptor: media.AVFileDescriptor = {
-        fd: localFile.fd,
-        offset: 0,
-        length: 0
-      };
-      player.fdSrc = fileDescriptor;
+      player.url = `fd://${localFile.fd}`;
       this.isCurrentLocal = true;
     } else {
       const headers: Record<string, string> = {

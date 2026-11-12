@@ -108,8 +108,11 @@ export struct ControlAreaComponent {
             if (this.isSilentMode) {
               this.volume = 0;
             } else {
-              let preVolume: number = PreferencesUtil.getInstance().getValue(VOLUME_ID) as number;
-              this.volume = preVolume ?? 10;
+              const storedVolume = PreferencesUtil.getInstance().getValue(VOLUME_ID);
+              this.volume = typeof storedVolume === 'number' &&
+                Number.isFinite(storedVolume) && storedVolume > 0
+                ? Math.min(100, storedVolume)
+                : 10;
             }
           })
 

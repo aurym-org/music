@@ -84,12 +84,8 @@ export struct VolumeControl {
           .showTips(false)
           .layoutWeight(1)
           .onChange((value: number, _mode: SliderChangeMode) => {
+            this.isSilentMode = value === 0;
             this.volume = value;
-            if (this.volume === 0) {
-              this.isSilentMode = true;
-            } else {
-              this.isSilentMode = false;
-            }
           })
       }
       .padding({ left: 15, right: 15 })
