@@ -9,6 +9,7 @@ import { util } from '@kit.ArkTS';
 import { http } from '@kit.NetworkKit';
 import { PreferencesUtil } from './PreferencesUtil';
 import Logger from './Logger';
+import { NetworkDiagnostics } from './NetworkDiagnostics';
 
 interface BiliWbiInfo {
   imgKey: string,
@@ -58,6 +59,9 @@ class WbiSigner {
   }
 
   private async doFetchAndCache(): Promise<void> {
+    let requestStartedAt = 0;
+    let responseCode: number | undefined = undefined;
+    let diagnosticLogged = false;
     try {
       const cached = await this.getCachedKeys();
       const now = Date.now();
@@ -75,6 +79,7 @@ class WbiSigner {
       }
 
       const httpRequest = http.createHttp();
+      requestStartedAt = Date.now();
       try {
         const response = await httpRequest.request('https://api.bilibili.com/x/web-interface/nav', {
           method: http.RequestMethod.GET,
@@ -86,7 +91,10 @@ class WbiSigner {
           readTimeout: 10000
         });
 
+        responseCode = response.responseCode;
         if (response.responseCode !== 200) {
+          NetworkDiagnostics.failure(TAG, 'wbi.nav', requestStartedAt, 'http_error', 1, response.responseCode);
+          diagnosticLogged = true;
           throw new Error(`WBI key request failed: HTTP ${response.responseCode}`);
         }
         const data: BiliWbiResponse = JSON.parse(response.result as string);
@@ -108,11 +116,16 @@ class WbiSigner {
         this.mixinKey = mixinKey;
         this.keyExpiresAt = fetchedAt + WbiSigner.KEY_TTL_MS;
         await this.cacheKeys(this.imgKey, this.subKey, fetchedAt);
+        NetworkDiagnostics.success(TAG, 'wbi.nav', requestStartedAt, response.responseCode, 1);
+        diagnosticLogged = true;
         Logger.info(TAG, 'WBI keys fetched and cached');
       } finally {
         httpRequest.destroy();
       }
     } catch (error) {
+      if (requestStartedAt > 0 && !diagnosticLogged) {
+        NetworkDiagnostics.failure(TAG, 'wbi.nav', requestStartedAt, 'request_or_parse_error', 1, responseCode, undefined, NetworkDiagnostics.getSystemErrorCode(error));
+      }
       const message = error instanceof Error ? error.message : String(error);
       Logger.error(TAG, `Error fetching WBI keys: ${message}`);
     }

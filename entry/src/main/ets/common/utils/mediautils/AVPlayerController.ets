@@ -151,6 +151,11 @@ export class AVPlayerController {
       return false;
     }
 
+    // Keep the selected track out of cache eviction while AVPlayer may still
+    // be reading its local file or while the new source is being prepared.
+    const activeBvid = AppStorage.get<string>(APP_STORAGE_KEYS.CURRENT_BVID);
+    MediaResourceManager.getInstance().setActiveSong(activeBvid);
+
     // Mark the new source version before assigning it. AVPlayer may emit the
     // initialized/prepared events while setMediaSource is still resolving.
     this.activeSourceVersion = expectedVersion;
@@ -194,9 +199,6 @@ export class AVPlayerController {
       try {
         sourceConfigured = await this.setPlayerUrl(src, expectedVersion);
       } catch (sourceError) {
-        // A cached file can disappear or become unreadable between hasSong()
-        // and openSync(). That failure occurs before AVPlayer emits an error
-        // event, so the normal error callback cannot recover it.
         if (!this.isLocalSource(src) || !isVersionMatch(expectedVersion)) {
           throw new Error(sourceError.message);
         }
@@ -1065,9 +1067,8 @@ export class AVPlayerController {
       }
       const currentDevice = deviceChangeInfo.devices[0];
       if (currentDevice) {
-        Logger.info(TAG, `DeviceInfo id: ${currentDevice.id}`);
-        Logger.info(TAG, `DeviceInfo name: ${currentDevice.name}`);
-        Logger.info(TAG, `DeviceInfo address: ${currentDevice.address}`);
+        // Device identifiers and addresses are intentionally omitted from logs.
+        Logger.info(TAG, 'Audio output device information changed');
       }
       Logger.info(TAG, `Device change reason: ${deviceChangeInfo.changeReason}`);
       if (deviceChangeInfo.changeReason === audio.AudioStreamDeviceChangeReason.REASON_OLD_DEVICE_UNAVAILABLE) {

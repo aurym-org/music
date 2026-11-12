@@ -7,6 +7,7 @@
 // [Start background_util]
 import { wantAgent, common } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import Logger from './Logger';
 
 const TAG = 'BackgroundUtil';

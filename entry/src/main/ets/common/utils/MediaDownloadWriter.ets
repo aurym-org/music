@@ -6,6 +6,7 @@
 
 import { fileIo } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
+import { NetworkDiagnostics } from './NetworkDiagnostics';
 
 /** Owns the HTTP stream and sequential asynchronous writes for one file. */
 export class MediaDownloadWriter {
@@ -43,6 +44,9 @@ export class MediaDownloadWriter {
     }
 
     let receivedBytes = 0;
+    const requestStartedAt = Date.now();
+    let responseCode: number | undefined = undefined;
+    let diagnosticLogged = false;
     let writeError: Error | undefined;
     let cancelled = false;
     let resolveDataEnd: () => void = () => {};
@@ -73,6 +77,12 @@ export class MediaDownloadWriter {
         return;
       }
 
+      if (receivedBytes + chunk.byteLength > MediaDownloadWriter.MAX_RESPONSE_BYTES) {
+        writeError = new Error('Download response exceeds the configured size limit');
+        resolveDataEnd();
+        destroyRequest();
+        return;
+      }
       receivedBytes += chunk.byteLength;
       writeQueue = writeQueue.then(async () => {
         if (cancelled || writeError) {
@@ -100,7 +110,6 @@ export class MediaDownloadWriter {
     try {
       request.on('dataReceive', onDataReceive);
       request.on('dataEnd', onDataEnd);
-      let responseCode: number;
       try {
         responseCode = await request.requestInStream(url, {
           method: http.RequestMethod.GET,
@@ -118,6 +127,8 @@ export class MediaDownloadWriter {
           cancelDownload();
           return;
         }
+        NetworkDiagnostics.failure('MediaDownloadWriter', 'media.download', requestStartedAt, 'transport_error', 1, undefined, undefined, NetworkDiagnostics.getSystemErrorCode(error));
+        diagnosticLogged = true;
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(message);
       }
@@ -130,6 +141,8 @@ export class MediaDownloadWriter {
         return;
       }
       if (responseCode !== 200) {
+        NetworkDiagnostics.failure('MediaDownloadWriter', 'media.download', requestStartedAt, 'http_error', 1, responseCode);
+        diagnosticLogged = true;
         throw new Error(`HTTP error: ${responseCode}`);
       }
 
@@ -148,6 +161,13 @@ export class MediaDownloadWriter {
       if (receivedBytes === 0) {
         throw new Error('Empty response body');
       }
+      NetworkDiagnostics.success('MediaDownloadWriter', 'media.download', requestStartedAt, responseCode, 1, receivedBytes);
+      diagnosticLogged = true;
+    } catch (error) {
+      if (!diagnosticLogged && !cancelled) {
+        NetworkDiagnostics.failure('MediaDownloadWriter', 'media.download', requestStartedAt, 'stream_or_write_error', 1, responseCode);
+      }
+      throw new Error(error.message);
     } finally {
       request.off('dataReceive', onDataReceive);
       request.off('dataEnd', onDataEnd);

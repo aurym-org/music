@@ -7,6 +7,7 @@
 import { http } from '@kit.NetworkKit';
 import { SongItem } from './SongData';
 import Logger from '../common/utils/Logger';
+import { NetworkDiagnostics } from '../common/utils/NetworkDiagnostics';
 import { wbiSigner } from '../common/utils/BiliWbiUtil';
 import { MediaResourceManager } from '../common/utils/MediaResourceManager';
 import { getCurrentVersion, isVersionMatch } from '../common/utils/VersionUtil';
@@ -64,24 +65,45 @@ export default class SongItemBuilder {
 
     const requestUrl = `https://api.bilibili.com/x/player/wbi/playurl?${queryParts.join('&')}`;
     const httpRequest = http.createHttp();
+    const requestStartedAt = Date.now();
+    let responseCode: number | undefined = undefined;
+    let diagnosticLogged = false;
     try {
-      const response = await httpRequest.request(requestUrl, {
-        method: http.RequestMethod.GET,
-        header: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-          'Referer': 'https://www.bilibili.com/',
-          'Accept-Language': 'zh-CN,zh;q=0.9'
-        },
-        connectTimeout: 10000,
-        readTimeout: 10000
-      });
-
+      let response: http.HttpResponse;
+      try {
+        response = await httpRequest.request(requestUrl, {
+          method: http.RequestMethod.GET,
+          header: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://www.bilibili.com/',
+            'Accept-Language': 'zh-CN,zh;q=0.9'
+          },
+          connectTimeout: 10000,
+          readTimeout: 10000
+        });
+      } catch (error) {
+        NetworkDiagnostics.failure(TAG, 'player.playurl', requestStartedAt, 'transport_error', 1, undefined, undefined, NetworkDiagnostics.getSystemErrorCode(error));
+        diagnosticLogged = true;
+        throw new Error(error.message);
+      }
+      responseCode = response.responseCode;
       if (response.responseCode !== 200) {
+        NetworkDiagnostics.failure(TAG, 'player.playurl', requestStartedAt, 'http_error', 1, response.responseCode);
+        diagnosticLogged = true;
         throw new Error(`Play URL request failed: HTTP ${response.responseCode}`);
       }
 
-      const result: BiliPlayUrlResponse = JSON.parse(response.result as string);
+      let result: BiliPlayUrlResponse;
+      try {
+        result = JSON.parse(response.result as string) as BiliPlayUrlResponse;
+      } catch (error) {
+        NetworkDiagnostics.failure(TAG, 'player.playurl', requestStartedAt, 'parse_error', 1, response.responseCode);
+        diagnosticLogged = true;
+        throw new Error(error.message);
+      }
       if (result.code !== 0) {
+        NetworkDiagnostics.failure(TAG, 'player.playurl', requestStartedAt, 'business_error', 1, response.responseCode, result.code);
+        diagnosticLogged = true;
         throw new Error(`Bilibili API error: ${result.message || result.code}`);
       }
 
@@ -137,7 +159,14 @@ export default class SongItemBuilder {
       // When Bilibili returns fewer backups than the retry limit, reuse the
       // last valid address after refreshing its signed URL from the API.
       const selectedIndex = Math.min(safeCandidateIndex, candidateUrls.length - 1);
+      NetworkDiagnostics.success(TAG, 'player.playurl', requestStartedAt, response.responseCode, 1);
+      diagnosticLogged = true;
       return candidateUrls[selectedIndex];
+    } catch (error) {
+      if (!diagnosticLogged) {
+        NetworkDiagnostics.failure(TAG, 'player.playurl', requestStartedAt, 'response_validation_error', 1, responseCode);
+      }
+      throw new Error(error.message);
     } finally {
       httpRequest.destroy();
     }

@@ -11,6 +11,8 @@ import { BreakpointConstants } from '../common/constants/BreakpointConstants';
 import { HiAppEventManager } from '../common/utils/HiAppEventManager';
 import { APP_STORAGE_KEYS } from '../common/constants/AppStorageKeys';
 import { MediaControlCenter } from '../common/utils/mediautils/MediaControlCenter';
+import { PreferencesUtil } from '../common/utils/PreferencesUtil';
+import { MediaResourceManager } from '../common/utils/MediaResourceManager';
 
 const TAG = 'EntryAbility';
 
@@ -34,6 +36,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    void PreferencesUtil.getInstance().flushPending();
     // Final fallback cleanup; Index.aboutToDisappear normally releases these
     // resources first, but Ability destruction must remain safe and idempotent.
     MediaControlCenter.getInstance().release();
@@ -110,6 +113,8 @@ export default class EntryAbility extends UIAbility {
 
   onBackground(): void {
     // Ability has back to background
+    PreferencesUtil.getInstance().flushPending();
+    MediaResourceManager.getInstance().cleanupCacheByLimit();
     Logger.info(TAG, 'Ability background');
   }
 }

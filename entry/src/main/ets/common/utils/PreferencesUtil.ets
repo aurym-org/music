@@ -16,6 +16,10 @@ export class PreferencesUtil {
   private static preferencesUtil: PreferencesUtil;
   private _preferences: preferences.Preferences | undefined;
   private readonly storeName: string = MY_STORE;
+  private static readonly FLUSH_DEBOUNCE_MS: number = 250;
+  private flushTimer: number | undefined = undefined;
+  private flushPromise: Promise<void> | undefined = undefined;
+  private hasPendingChanges: boolean = false;
 
   private get preferences(): preferences.Preferences | undefined {
     if (!this._preferences) {
@@ -51,11 +55,78 @@ export class PreferencesUtil {
       return;
     }
     try {
+      // Update the in-memory Preferences cache synchronously so existing
+      // callers keep their current behavior. Disk persistence is coalesced.
       store.putSync(key, value);
-      store.flushSync();
+      this.hasPendingChanges = true;
+      this.scheduleFlush();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      Logger.error(TAG, `Failed to persist preference '${key}': ${message}`);
+      Logger.error(TAG, `Failed to update preference '${key}': ${message}`);
+    }
+  }
+
+  private scheduleFlush(delayMs: number = PreferencesUtil.FLUSH_DEBOUNCE_MS): void {
+    if (this.flushTimer !== undefined) {
+      clearTimeout(this.flushTimer);
+    }
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = undefined;
+      void this.flushPending();
+    }, delayMs);
+  }
+
+  /** Persist all pending preference updates without blocking the UI thread. */
+  public async flushPending(): Promise<void> {
+    if (this.flushTimer !== undefined) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = undefined;
+    }
+
+    if (this.flushPromise) {
+      try {
+        await this.flushPromise;
+      } catch {
+        // The caller that started the flush records the error and schedules
+        // the retry. A concurrent lifecycle flush must not create an
+        // unhandled rejection while waiting for that same operation.
+        return;
+      }
+      if (this.hasPendingChanges) {
+        return this.flushPending();
+      }
+      return;
+    }
+
+    if (!this.hasPendingChanges) {
+      return;
+    }
+
+    const store = this.preferences;
+    if (!store) {
+      // Keep the dirty flag so a later lifecycle flush can retry once Context
+      // becomes available.
+      return;
+    }
+
+    this.hasPendingChanges = false;
+    try {
+      const flushTask = store.flush();
+      this.flushPromise = flushTask;
+      await flushTask;
+    } catch (error) {
+      this.hasPendingChanges = true;
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(TAG, `Failed to flush preferences: ${message}`);
+      this.scheduleFlush(5000);
+    } finally {
+      this.flushPromise = undefined;
+    }
+
+    // A write may have arrived while flush() was in flight. Schedule another
+    // coalesced flush rather than losing that update.
+    if (this.hasPendingChanges && this.flushTimer === undefined) {
+      this.scheduleFlush();
     }
   }
 

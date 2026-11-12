@@ -4,7 +4,7 @@
  * https://opensource.org/licenses/MIT
  */
 
-import { getFavoriteDetail } from '../../../model/SongListData';
+import { getFavoriteDetail } from '../../../repository/FavoriteRepository';
 import { SongItem } from '../../../viewmodel/SongData';
 import SongItemBuilder from '../../../viewmodel/SongItemBuilder';
 import { DEFAULT_VOLUME, MusicPlayMode, SILENT_ID, VOLUME_ID, PLAY_MODE_ID } from '../../constants/PlayerConstants';
@@ -24,6 +24,7 @@ import { wbiSigner } from '../BiliWbiUtil';
 import { getCurrentVersion, incrementVersion, isVersionMatch } from '../VersionUtil';
 import { APP_STORAGE_KEYS } from '../../constants/AppStorageKeys';
 import { image } from '@kit.ImageKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 const TAG = 'MediaControlCenter';
 
@@ -71,6 +72,10 @@ export class MediaControlCenter {
       return false;
     }
 
+    // Protect both the previous active track and this candidate while its
+    // cover/source are prepared. AVPlayerController narrows the pin to the
+    // new active track once the old source has been reset.
+    MediaResourceManager.getInstance().protectSongForTransition(currentSong.bvid);
     await this.songItemBuilder.build(currentSong, expectedVersion);
     if (!isVersionMatch(expectedVersion)) {
       return false;
@@ -423,6 +428,29 @@ export class MediaControlCenter {
     }
   }
 
+  private async createCoverPixelMap(bvid: string): Promise<PixelMap> {
+    const mediaMgr = MediaResourceManager.getInstance();
+    const imageSource = image.createImageSource(mediaMgr.getCoverPath(bvid));
+    if (!imageSource) {
+      throw new Error('Failed to create image source');
+    }
+
+    try {
+      return await imageSource.createPixelMap({
+        desiredPixelFormat: image.PixelMapFormat.RGBA_8888
+      });
+    } finally {
+      try {
+        await imageSource.release();
+      } catch (releaseError) {
+        const releaseMessage = releaseError instanceof Error
+          ? releaseError.message
+          : String(releaseError);
+        Logger.warn(TAG, `ImageSource release failed: ${releaseMessage}`);
+      }
+    }
+  }
+
   private async getPixelMap(url: string, currentVersion: number): Promise<void> {
     if (!isVersionMatch(currentVersion)) return;
 
@@ -432,50 +460,53 @@ export class MediaControlCenter {
     }
     const bvid = song.bvid;
     const mediaMgr = MediaResourceManager.getInstance();
+    const hadCachedCover = mediaMgr.hasCover(bvid);
 
-    if (!isVersionMatch(currentVersion)) return;
-    if (!mediaMgr.hasCover(bvid)) {
+    if (!hadCachedCover) {
       await mediaMgr.downloadCover(bvid, url);
       if (!isVersionMatch(currentVersion)) {
         return;
       }
       Logger.info(TAG, `封面从网络加载并缓存: ${bvid}`);
     }
-    try {
-      const localCoverPath = mediaMgr.getCoverPath(bvid);
-      const imageSource = image.createImageSource(localCoverPath);
-      if (!imageSource) {
-        throw new Error('Failed to create image source');
-      }
 
+    try {
       let pixelMap: PixelMap;
       try {
-        pixelMap = await imageSource.createPixelMap({
-          desiredPixelFormat: image.PixelMapFormat.RGBA_8888
-        });
-      } finally {
-        try {
-          await imageSource.release();
-        } catch (releaseError) {
-          const releaseMessage = releaseError instanceof Error ? releaseError.message : String(releaseError);
-          Logger.warn(TAG, `ImageSource release failed: ${releaseMessage}`);
+        pixelMap = await this.createCoverPixelMap(bvid);
+      } catch (cacheError) {
+        if (!hadCachedCover || !isVersionMatch(currentVersion)) {
+          throw new Error(cacheError.message);
         }
+
+        Logger.warn(TAG, `Cached cover is unreadable; refreshing ${bvid}: ${cacheError.message}`);
+        mediaMgr.removeCover(bvid);
+        await mediaMgr.downloadCover(bvid, url);
+        if (!isVersionMatch(currentVersion)) {
+          return;
+        }
+        pixelMap = await this.createCoverPixelMap(bvid);
       }
 
       if (!isVersionMatch(currentVersion)) {
-        await pixelMap.release();
+        try {
+          await pixelMap.release();
+        } catch (releaseError) {
+          const message = releaseError instanceof Error
+            ? releaseError.message
+            : String(releaseError);
+          Logger.warn(TAG, `Stale PixelMap release failed: ${message}`);
+        }
         return;
       }
       this.currentPixelMap = pixelMap;
-      AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, this.currentPixelMap);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, pixelMap);
       this.avSessionController?.setAVMetadata();
       Logger.info(TAG, `封面从本地加载: ${bvid}`);
-      return;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      Logger.warn(TAG, `本地封面读取失败: ${message}`);
-      // An old image task must not clear the active song's image or delete a
-      // cache entry after the user has already switched to another song.
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(TAG, `封面加载失败: ${message}`);
+      // An old image task must not delete the active song's cache.
       if (isVersionMatch(currentVersion)) {
         mediaMgr.removeCover(bvid);
       }
@@ -535,36 +566,49 @@ export class MediaControlCenter {
 
   // [End StartContinuousTask]
 
-  // Obtain a secure random number in the half-open interval [0, 1).
+  // Obtain a random number in the half-open interval [0, 1).
   // Four bytes are required so playlists with more than 256 tracks can select
   // every index instead of being restricted to the first 256 entries.
-  private getSecureRandom0To1(): number {
-    const rand = cryptoFramework.createRandom();
-    const randomBytes = rand.generateRandomSync(4).data;
-    if (randomBytes.length < 4) {
-      throw new Error('Secure random generator returned insufficient data');
-    }
+  private getRandom0To1(): number {
+    try {
+      const rand = cryptoFramework.createRandom();
+      const randomBytes = rand.generateRandomSync(4).data;
+      if (randomBytes.length < 4) {
+        throw new Error('Secure random generator returned insufficient data');
+      }
 
-    const randomValue = randomBytes[0] * 0x1000000 +
-      randomBytes[1] * 0x10000 +
-      randomBytes[2] * 0x100 +
-      randomBytes[3];
-    return randomValue / 0x100000000;
+      const randomValue = randomBytes[0] * 0x1000000 +
+        randomBytes[1] * 0x10000 +
+        randomBytes[2] * 0x100 +
+        randomBytes[3];
+      return randomValue / 0x100000000;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(TAG, `Secure random unavailable; using non-cryptographic fallback: ${message}`);
+      // Playlist ordering does not require cryptographic randomness.
+      return Math.random();
+    }
   }
 
-  // Set a secure random number
+  // Select a different track without an unbounded retry loop.
   private setRandom(): number {
-    const max = this.songList.length - 1;
-    if (max <= 0) {
+    const songCount = this.songList.length;
+    if (songCount <= 1) {
       return 0;
     }
-    let num: number;
-    do {
-      const random0To1 = this.getSecureRandom0To1();
-      num = Math.floor(random0To1 * this.songList.length);
-    } while (num === this.musicIndex);
-    Logger.info(TAG, `random num is ${num}, max length is ${max}`);
-    return num;
+
+    const random0To1 = this.getRandom0To1();
+    const currentIndexIsValid = Number.isInteger(this.musicIndex) &&
+      this.musicIndex >= 0 && this.musicIndex < songCount;
+    if (!currentIndexIsValid) {
+      return Math.min(Math.floor(random0To1 * songCount), songCount - 1);
+    }
+
+    // Choose an offset in [1, songCount), which excludes the current track.
+    const offset = 1 + Math.min(Math.floor(random0To1 * (songCount - 1)), songCount - 2);
+    const nextIndex = (this.musicIndex + offset) % songCount;
+    Logger.info(TAG, `random num is ${nextIndex}, max length is ${songCount - 1}`);
+    return nextIndex;
   }
 
   // [Start playNext]
@@ -630,13 +674,17 @@ export class MediaControlCenter {
     if (!this.avPlayerController) {
       return;
     }
+    let stopRequestFailed = false;
     try {
       await this.avPlayerController.stop();
     } catch (error) {
+      stopRequestFailed = true;
       const message = error instanceof Error ? error.message : String(error);
       Logger.error(TAG, `stop failed: ${message}`);
     }
-    Logger.info(TAG, 'stop success');
+    if (!stopRequestFailed) {
+      Logger.info(TAG, 'stop request completed');
+    }
     if (playbackIntentGeneration !== undefined &&
       playbackIntentGeneration !== this.playbackIntentGeneration) {
       return;

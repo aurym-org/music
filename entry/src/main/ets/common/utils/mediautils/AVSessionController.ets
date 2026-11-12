@@ -266,9 +266,23 @@ export class AVSessionController {
   }
   // Set favorite state listening.
   private onToggleFavorite: (assetId: string) => void = (assetId: string) => {
-    Logger.info(TAG, `on toggleFavorite , do toggleFavorite task`);
-    const isFavorite = AppStorage.get<boolean>(APP_STORAGE_KEYS.IS_FAVORITE) ?? false;
-    this.updateFavoriteState(assetId, !isFavorite);
+    if (!assetId) {
+      Logger.warn(TAG, 'Ignore favorite toggle with an empty assetId');
+      return;
+    }
+
+    // AVSession may deliver a delayed event for the previously active track.
+    // Read that track's own persisted state instead of blindly toggling the
+    // current track's UI state.
+    const currentSongList: SongItem[] = AppStorage.get(APP_STORAGE_KEYS.SONG_LIST) ?? this.songList;
+    const currentIndex = AppStorage.get<number>(APP_STORAGE_KEYS.SELECT_INDEX) ?? 0;
+    const isCurrentAsset = currentSongList[currentIndex]?.bvid === assetId;
+    const currentFavoriteState = isCurrentAsset
+      ? AppStorage.get<boolean>(APP_STORAGE_KEYS.IS_FAVORITE) === true
+      : PreferencesUtil.getInstance().getValue(assetId) === true;
+
+    Logger.info(TAG, 'on toggleFavorite, updating the target asset state');
+    this.updateFavoriteState(assetId, !currentFavoriteState);
   }
 
   // Set play mode listening.
@@ -365,10 +379,24 @@ export class AVSessionController {
   }
 
   public getAndUpdateFavoriteState(assetId: string): void {
-    const isHas = PreferencesUtil.getInstance().preferencesHas(assetId);
-    const storedValue = isHas ? PreferencesUtil.getInstance().getValue(assetId) : undefined;
+    if (!assetId) {
+      return;
+    }
+
+    // Session activation is asynchronous. The song may have changed while
+    // createAVSession()/activate() was pending, so never let an old asset
+    // overwrite the current track's favorite UI state.
+    this.songList = AppStorage.get(APP_STORAGE_KEYS.SONG_LIST) ?? this.songList;
+    this.musicIndex = AppStorage.get<number>(APP_STORAGE_KEYS.SELECT_INDEX) ?? 0;
+    const currentSong = this.songList[this.musicIndex];
+    if (currentSong?.bvid !== assetId) {
+      Logger.debug(TAG, `Ignoring stale favorite-state sync for ${assetId}`);
+      return;
+    }
+
+    const storedValue = PreferencesUtil.getInstance().getValue(assetId);
     const isFavorite = storedValue === true;
-    Logger.info(TAG, `isHas: ${isHas}, isFavorite: ${isFavorite}, assetId: ${assetId}`);
+    Logger.info(TAG, `isFavorite: ${isFavorite}, assetId: ${assetId}`);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_FAVORITE, isFavorite);
     this.setFavoriteState(isFavorite);
   }
