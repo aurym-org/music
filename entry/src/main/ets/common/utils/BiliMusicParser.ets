@@ -4,6 +4,7 @@
  * https://opensource.org/licenses/MIT
  */
 import { BiliFavDetailItemModel } from '../../viewmodel/BiliFavDetail';
+import { Candidate, CandidateBuckets, MusicCandidateSelector, normalizeMusicKey, normalizeMusicText } from './MusicCandidateSelector';
 
 interface SongInfo {
   title: string;
@@ -15,19 +16,6 @@ interface TextEntry {
   rawText: string;
   role: string;
   path: string;
-}
-
-interface Candidate {
-  value: string;
-  key: string;
-  score: number;
-  source: string;
-  rule: string;
-}
-
-interface CandidateBuckets {
-  titles: Candidate[];
-  singers: Candidate[];
 }
 
 interface DashPair {
@@ -50,6 +38,7 @@ interface BracketMatch {
 }
 
 export class BiliMusicParser {
+  private readonly candidateSelector: MusicCandidateSelector = new MusicCandidateSelector();
   private noiseKeywords: string[] = [
     'hi-res', 'hires', 'lossless', '无损音质', '无损', '音质', '4k', '8k',
     '60fps', '50fps', '120fps', '画质', '修复', '超清', '高清', '原画',
@@ -115,9 +104,9 @@ export class BiliMusicParser {
       }
     }
 
-    const selectedTitle = this.selectCandidate(candidates.titles, 'title', candidates);
-    let selectedSinger = this.selectCandidate(candidates.singers, 'singer', candidates);
-    if (selectedTitle.length > 0 && this.compareKey(selectedTitle) === this.compareKey(selectedSinger)) {
+    const selectedTitle = this.candidateSelector.selectCandidate(candidates.titles, 'title', candidates);
+    let selectedSinger = this.candidateSelector.selectCandidate(candidates.singers, 'singer', candidates);
+    if (selectedTitle.length > 0 && normalizeMusicKey(selectedTitle) === normalizeMusicKey(selectedSinger)) {
       selectedSinger = '';
     }
 
@@ -150,14 +139,7 @@ export class BiliMusicParser {
   }
 
   private normalize(value: string): string {
-    return value
-      .replace(/[\u200B-\u200D\uFEFF]/g, '')
-      .replace(/\u00A0/g, ' ')
-      .replace(/，/g, ',')
-      .replace(/－/g, '-')
-      .replace(/[\t\r\n]+/g, ' ')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
+    return normalizeMusicText(value);
   }
 
   private preserveLineBreaks(value: string): string {
@@ -171,10 +153,6 @@ export class BiliMusicParser {
       .trim();
   }
 
-  private compareKey(value: string): string {
-    return this.normalize(value).toLowerCase().replace(/[\s.,!?;:'\"()[\]{}<>，。！？；：、“”‘’【】《》…·、—\-_/|｜~～+&@#$%^*=]+/g, '');
-  }
-
   private isNoise(value: string): boolean {
     return this.isNoiseNormalized(this.normalize(value));
   }
@@ -182,12 +160,12 @@ export class BiliMusicParser {
   private isNoiseNormalized(value: string): boolean {
     const lower = value.trim().toLowerCase();
     if (lower.length === 0) return true;
+    const tokens: string[] = lower.match(/[a-z0-9]+/g) ?? [];
     for (let i = 0; i < this.noiseKeywords.length; i++) {
       const keyword = this.noiseKeywords[i].toLowerCase();
       // Latin abbreviations such as "mv" should match whole tokens, not
       // arbitrary character sequences inside an actual song title.
       if (/^[a-z0-9]+$/.test(keyword)) {
-        const tokens: string[] = lower.match(/[a-z0-9]+/g) ?? [];
         if (tokens.includes(keyword)) {
           return true;
         }
@@ -323,7 +301,7 @@ export class BiliMusicParser {
   ): void {
     if (cleaned.length === 0) return;
     if (target === 'singer' && this.isContextLikeName(cleaned) && !this.hasSafeCommaSingerList(cleaned)) return;
-    const key = this.compareKey(cleaned);
+    const key = normalizeMusicKey(cleaned);
     if (key.length === 0) return;
     const candidate: Candidate = {
       value: cleaned,
@@ -374,7 +352,7 @@ export class BiliMusicParser {
     const lines = source.split('\n').map((line: string): string => line.trim()).filter((line: string): boolean => line.length > 0);
     if (lines.length > 1 && !/[:：]/.test(lines[0]) && /^(作词|填词|作曲|谱曲|编曲|制作人|混音)\s*[:：]/.test(lines[1])) {
       const headerSinger = this.cleanSinger(lines[0]);
-      const repeatsTitle = buckets.titles.some((candidate: Candidate): boolean => candidate.key === this.compareKey(headerSinger));
+      const repeatsTitle = buckets.titles.some((candidate: Candidate): boolean => candidate.key === normalizeMusicKey(headerSinger));
       if (headerSinger.length > 0 && headerSinger.length <= 50 && this.looksLikeName(headerSinger) && !repeatsTitle) {
         this.addCleanCandidate('singer', headerSinger, 82, entry, 'singer-credit-header', buckets);
       }
@@ -635,9 +613,9 @@ export class BiliMusicParser {
 
     // upper.name is only a weak tie-breaker for an otherwise ambiguous title pair.
     if (score <= 76 && upperName.length > 0 && entry.role === 'mainTitle') {
-      const upperKey = this.compareKey(upperName);
-      const leftMatches = upperKey === this.compareKey(pair.left);
-      const rightMatches = upperKey === this.compareKey(pair.right);
+      const upperKey = normalizeMusicKey(upperName);
+      const leftMatches = upperKey === normalizeMusicKey(pair.left);
+      const rightMatches = upperKey === normalizeMusicKey(pair.right);
       if (leftMatches !== rightMatches) {
         orientation = leftMatches ? 'singer-first' : 'song-first';
         score = 78;
@@ -717,8 +695,8 @@ export class BiliMusicParser {
   private hasCommaSingerList(value: string): boolean {
     const parts = this.normalize(value).split(/[,，]/);
     if (parts.length < 2 || parts.length > 3) return false;
-    const first = this.compareKey(parts[0]);
-    const second = this.compareKey(parts[1]);
+    const first = normalizeMusicKey(parts[0]);
+    const second = normalizeMusicKey(parts[1]);
     if (first === second) return false;
     for (let i = 0; i < parts.length; i++) {
       if (this.wordCount(parts[i]) < 2 && !/[.\d]/.test(parts[i])) return false;
@@ -785,90 +763,5 @@ export class BiliMusicParser {
     return { orientation: 'singer-first', score: entry.role === 'description' ? 72 : 76 };
   }
 
-  private selectCandidate(items: Candidate[], target: string, buckets: CandidateBuckets): string {
-    if (items.length === 0) return '';
 
-    // Aggregate only genuinely independent input paths (title vs intro).
-    const values: Candidate[] = [];
-    const supports: number[] = [];
-    const sources: string[][] = [];
-
-    for (let i = 0; i < items.length; i++) {
-      const candidate = items[i];
-      let found = -1;
-      for (let j = 0; j < values.length; j++) {
-        if (values[j].key === candidate.key) {
-          found = j;
-          break;
-        }
-      }
-
-      if (found < 0) {
-        values.push({
-          value: candidate.value,
-          key: candidate.key,
-          score: candidate.score,
-          source: candidate.source,
-          rule: candidate.rule
-        });
-        supports.push(1);
-        sources.push([candidate.source]);
-      } else {
-        if (sources[found].indexOf(candidate.source) < 0) {
-          sources[found].push(candidate.source);
-          supports[found] = supports[found] + 1;
-        }
-        if (candidate.score > values[found].score) {
-          values[found].value = candidate.value;
-          values[found].score = candidate.score;
-          values[found].source = candidate.source;
-          values[found].rule = candidate.rule;
-        }
-      }
-    }
-
-    for (let i = 0; i < values.length; i++) {
-      values[i].score = Math.min(100, values[i].score + Math.min(5, (supports[i] - 1) * 2));
-    }
-
-    // Small candidate arrays: insertion sort is predictable and avoids generic comparators.
-    for (let i = 1; i < values.length; i++) {
-      const current = values[i];
-      let j = i - 1;
-      while (j >= 0 && values[j].score < current.score) {
-        values[j + 1] = values[j];
-        j--;
-      }
-      values[j + 1] = current;
-    }
-
-    let selected = values[0].score >= 50 ? values[0].value : '';
-    if (selected.length === 0) return '';
-
-    // Do not return identical strings as both song and singer when a credible
-    // alternative exists for the requested side.
-    const otherItems = target === 'title' ? buckets.singers : buckets.titles;
-    const otherBest = this.bestKey(otherItems);
-    if (otherBest.length > 0 && this.compareKey(selected) === otherBest) {
-      for (let i = 1; i < values.length; i++) {
-        if (values[i].score >= 50 && values[i].key !== otherBest) {
-          selected = values[i].value;
-          break;
-        }
-      }
-    }
-    return selected;
-  }
-
-  private bestKey(items: Candidate[]): string {
-    let bestScore = -1;
-    let best = '';
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].score > bestScore) {
-        bestScore = items[i].score;
-        best = items[i].key;
-      }
-    }
-    return best;
-  }
 }

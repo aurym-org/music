@@ -6,7 +6,7 @@
 
 import { common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
-import { http } from '@kit.NetworkKit';
+import { MediaDownloadWriter } from './MediaDownloadWriter';
 import Logger from './Logger';
 import { SongItem } from '../../viewmodel/SongData';
 import { APP_STORAGE_KEYS } from '../constants/AppStorageKeys';
@@ -229,45 +229,49 @@ export class MediaResourceManager {
   }
 
   // ============ 私有下载实现 ============
-  /**
-   * 下载歌曲（核心逻辑）
-   */
+  /** 下载歌曲并发布到正式缓存路径。 */
   private async doDownloadSong(bvid: string, url: string, resourceVersion: number): Promise<void> {
-    const resourceKey = `song:${bvid}`;
-    const finalPath = this.getSongPath(bvid);
-    if (!finalPath) {
-      throw new Error('Invalid song resource path');
-    }
-    const partPath = `${finalPath}.${resourceVersion}${this.PART_SUFFIX}`;
+    await this.downloadResource(
+      this.getSongPath(bvid),
+      url,
+      this.getSongHeaders(),
+      `song:${bvid}`,
+      resourceVersion,
+      'song'
+    );
+  }
 
-    try {
-      await this.downloadToFile(url, this.getSongHeaders(), partPath, resourceKey, resourceVersion);
-      if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
-        this.removeFileQuietly(partPath);
-        return;
-      }
-      this.removeFileQuietly(finalPath);
-      fileIo.renameSync(partPath, finalPath);
-    } catch (error) {
-      this.removeFileQuietly(partPath);
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Download song failed: ${message}`);
-    }
+  /** 下载封面并发布到正式缓存路径。 */
+  private async doDownloadCover(bvid: string, url: string, resourceVersion: number): Promise<void> {
+    await this.downloadResource(
+      this.getCoverPath(bvid),
+      url,
+      this.getCoverHeaders(),
+      `cover:${bvid}`,
+      resourceVersion,
+      'cover'
+    );
   }
 
   /**
-   * 下载封面（核心逻辑）
+   * 歌曲和封面共用同一套下载、版本校验和临时文件发布流程。
+   * 类型差异只保留在目标路径、请求头和日志标签中。
    */
-  private async doDownloadCover(bvid: string, url: string, resourceVersion: number): Promise<void> {
-    const resourceKey = `cover:${bvid}`;
-    const finalPath = this.getCoverPath(bvid);
+  private async downloadResource(
+    finalPath: string,
+    url: string,
+    headers: Record<string, string>,
+    resourceKey: string,
+    resourceVersion: number,
+    resourceType: string
+  ): Promise<void> {
     if (!finalPath) {
-      throw new Error('Invalid cover resource path');
+      throw new Error(`Invalid ${resourceType} resource path`);
     }
-    const partPath = `${finalPath}.${resourceVersion}${this.PART_SUFFIX}`;
 
+    const partPath = `${finalPath}.${resourceVersion}${this.PART_SUFFIX}`;
     try {
-      await this.downloadToFile(url, this.getCoverHeaders(), partPath, resourceKey, resourceVersion);
+      await this.downloadToFile(url, headers, partPath, resourceKey, resourceVersion);
       if (!this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
         this.removeFileQuietly(partPath);
         return;
@@ -277,11 +281,11 @@ export class MediaResourceManager {
     } catch (error) {
       this.removeFileQuietly(partPath);
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Download cover failed: ${message}`);
+      throw new Error(`Download ${resourceType} failed: ${message}`);
     }
   }
 
-  // ============ 网络请求与流式落盘 ============
+  // ============ 下载执行 ============
   private async downloadToFile(
     url: string,
     headers: Record<string, string>,
@@ -289,93 +293,12 @@ export class MediaResourceManager {
     resourceKey: string,
     resourceVersion: number
   ): Promise<void> {
-    const request = http.createHttp();
-    let file: fileIo.File;
-    try {
-      file = fileIo.openSync(
-        path,
-        fileIo.OpenMode.CREATE | fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.TRUNC
-      );
-    } catch (error) {
-      request.destroy();
-      throw new Error(error.message);
-    }
-    let receivedBytes = 0;
-    let writeError: Error | undefined;
-    let resolveDataEnd: () => void = () => {};
-    const dataEnd = new Promise<void>((resolve) => {
-      resolveDataEnd = resolve;
-    });
-    let writeQueue: Promise<void> = Promise.resolve();
-
-    const onDataReceive = (chunk: ArrayBuffer): void => {
-      if (chunk.byteLength === 0 || writeError ||
-        !this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
-        return;
-      }
-      receivedBytes += chunk.byteLength;
-      writeQueue = writeQueue.then(async () => {
-        if (!writeError && this.isResourceVersionCurrent(resourceKey, resourceVersion)) {
-          await this.writeChunk(file.fd, chunk);
-        }
-      }).catch((error: Error) => {
-        writeError = error instanceof Error ? error : new Error(String(error));
-        resolveDataEnd();
-        request.destroy();
-      });
-    };
-    const onDataEnd = (): void => {
-      resolveDataEnd();
-    };
-
-    try {
-      request.on('dataReceive', onDataReceive);
-      request.on('dataEnd', onDataEnd);
-      let responseCode: number;
-      try {
-        responseCode = await request.requestInStream(url, {
-          method: http.RequestMethod.GET,
-          header: headers,
-          connectTimeout: 15000,
-          readTimeout: 60000,
-          maxLimit: 100 * 1024 * 1024,
-          maxRedirects: 5
-        });
-      } catch (error) {
-        if (writeError) {
-          throw writeError;
-        }
-        throw new Error(error.message);
-      }
-      if (responseCode !== 200) {
-        throw new Error(`HTTP error: ${responseCode}`);
-      }
-      await dataEnd;
-      await writeQueue;
-      if (writeError) {
-        throw writeError;
-      }
-      if (receivedBytes === 0) {
-        throw new Error('Empty response body');
-      }
-    } finally {
-      request.off('dataReceive', onDataReceive);
-      request.off('dataEnd', onDataEnd);
-      request.destroy();
-      await writeQueue;
-      fileIo.closeSync(file);
-    }
-  }
-
-  private async writeChunk(fd: number, chunk: ArrayBuffer): Promise<void> {
-    let written = 0;
-    while (written < chunk.byteLength) {
-      const count = await fileIo.write(fd, chunk.slice(written));
-      if (count <= 0) {
-        throw new Error('Write file failed: no bytes written');
-      }
-      written += count;
-    }
+    await MediaDownloadWriter.download(
+      url,
+      headers,
+      path,
+      () => this.isResourceVersionCurrent(resourceKey, resourceVersion)
+    );
   }
 
   /**
@@ -489,25 +412,28 @@ export class MediaResourceManager {
       }
     }
 
-    // Invalidate in-flight downloads for songs that are no longer in the list.
-    // Otherwise an old request could finish after cleanup and recreate an orphan file.
-    for (const bvid of this.downloadingSongs.keys()) {
-      if (!validBvids.has(bvid)) {
-        this.invalidateResource(`song:${bvid}`);
-        this.downloadingSongs.delete(bvid);
-      }
-    }
-    for (const bvid of this.downloadingCovers.keys()) {
-      if (!validBvids.has(bvid)) {
-        this.invalidateResource(`cover:${bvid}`);
-        this.downloadingCovers.delete(bvid);
-      }
-    }
+    // Invalidate old requests before deleting orphan files so late responses
+    // cannot publish resources after the cleanup pass.
+    this.invalidateOrphanDownloads(this.downloadingSongs, validBvids, 'song');
+    this.invalidateOrphanDownloads(this.downloadingCovers, validBvids, 'cover');
 
     // 清理歌曲目录
     this.cleanupDirByExt(this.getSubDir(this.SONG_SUBDIR), this.SONG_EXT, validBvids);
     // 清理封面目录
     this.cleanupDirByExt(this.getSubDir(this.COVER_SUBDIR), this.COVER_EXT, validBvids);
+  }
+
+  private invalidateOrphanDownloads(
+    downloads: Map<string, Promise<void>>,
+    validBvids: Set<string>,
+    resourceType: string
+  ): void {
+    for (const bvid of downloads.keys()) {
+      if (!validBvids.has(bvid)) {
+        this.invalidateResource(`${resourceType}:${bvid}`);
+        downloads.delete(bvid);
+      }
+    }
   }
 
   /**
