@@ -36,6 +36,7 @@ export class MediaResourceManager {
   private downloadingSongs: Map<string, Promise<void>> = new Map();
   private downloadingCovers: Map<string, Promise<void>> = new Map();
   private resourceVersions: Map<string, number> = new Map();
+  private activeDownloadCancels: Map<string, () => void> = new Map();
 
   // ============ 单例 ============
   public static getInstance(): MediaResourceManager {
@@ -112,6 +113,11 @@ export class MediaResourceManager {
 
   private invalidateResource(key: string): void {
     this.nextResourceVersion(key);
+    const cancel = this.activeDownloadCancels.get(key);
+    if (cancel) {
+      this.activeDownloadCancels.delete(key);
+      cancel();
+    }
   }
 
   public getSongPath(bvid: string): string {
@@ -184,7 +190,10 @@ export class MediaResourceManager {
           Logger.info(TAG, `Song ${bvid} downloaded successfully`);
         }
       })
-      .catch((error: Error) => Logger.error(TAG, `Song ${bvid} download failed: ${error.message}`))
+      .catch((error: Error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.error(TAG, `Song ${bvid} download failed: ${message}`);
+      })
       .finally(() => {
         if (this.downloadingSongs.get(bvid) === task) {
           this.downloadingSongs.delete(bvid);
@@ -293,12 +302,28 @@ export class MediaResourceManager {
     resourceKey: string,
     resourceVersion: number
   ): Promise<void> {
-    await MediaDownloadWriter.download(
-      url,
-      headers,
-      path,
-      () => this.isResourceVersionCurrent(resourceKey, resourceVersion)
-    );
+    let registeredCancel: (() => void) | undefined;
+    try {
+      await MediaDownloadWriter.download(
+        url,
+        headers,
+        path,
+        () => this.isResourceVersionCurrent(resourceKey, resourceVersion),
+        (cancel) => {
+          if (cancel) {
+            registeredCancel = cancel;
+            this.activeDownloadCancels.set(resourceKey, cancel);
+          } else if (registeredCancel &&
+            this.activeDownloadCancels.get(resourceKey) === registeredCancel) {
+            this.activeDownloadCancels.delete(resourceKey);
+          }
+        }
+      );
+    } finally {
+      if (registeredCancel && this.activeDownloadCancels.get(resourceKey) === registeredCancel) {
+        this.activeDownloadCancels.delete(resourceKey);
+      }
+    }
   }
 
   /**

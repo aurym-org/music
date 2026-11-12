@@ -42,6 +42,8 @@ class WbiSigner {
   private subKey: string = '';
   private mixinKey: string = '';
   private fetchPromise: Promise<void> | null = null;
+  private keyExpiresAt: number = 0;
+  private static readonly KEY_TTL_MS: number = 23 * 60 * 60 * 1000;
 
   async fetchAndCacheWbiKeys(): Promise<void> {
     if (this.fetchPromise) {
@@ -59,12 +61,17 @@ class WbiSigner {
     try {
       const cached = await this.getCachedKeys();
       const now = Date.now();
-      if (cached && (now - cached.time < 23 * 60 * 60 * 1000)) {
-        this.imgKey = cached.imgKey;
-        this.subKey = cached.subKey;
-        this.mixinKey = this.generateMixinKey(this.imgKey, this.subKey);
-        Logger.info(TAG, 'WBI keys loaded from cache');
-        return;
+      if (cached && cached.time <= now && now - cached.time < WbiSigner.KEY_TTL_MS) {
+        const cachedMixinKey = this.generateMixinKey(cached.imgKey, cached.subKey);
+        if (cachedMixinKey.length === 32) {
+          this.imgKey = cached.imgKey;
+          this.subKey = cached.subKey;
+          this.mixinKey = cachedMixinKey;
+          this.keyExpiresAt = cached.time + WbiSigner.KEY_TTL_MS;
+          Logger.info(TAG, 'WBI keys loaded from cache');
+          return;
+        }
+        Logger.warn(TAG, 'Cached WBI keys are invalid; fetching fresh keys');
       }
 
       const httpRequest = http.createHttp();
@@ -89,13 +96,18 @@ class WbiSigner {
           throw new Error('WBI key fields are missing from nav response');
         }
 
-        this.imgKey = this.extractKeyFromUrl(imgUrl);
-        this.subKey = this.extractKeyFromUrl(subUrl);
-        this.mixinKey = this.generateMixinKey(this.imgKey, this.subKey);
-        if (!this.mixinKey) {
-          throw new Error('Failed to generate WBI mixin key');
+        const imgKey = this.extractKeyFromUrl(imgUrl);
+        const subKey = this.extractKeyFromUrl(subUrl);
+        const mixinKey = this.generateMixinKey(imgKey, subKey);
+        if (mixinKey.length !== 32) {
+          throw new Error('Failed to generate a valid WBI mixin key');
         }
-        await this.cacheKeys(this.imgKey, this.subKey);
+        const fetchedAt = Date.now();
+        this.imgKey = imgKey;
+        this.subKey = subKey;
+        this.mixinKey = mixinKey;
+        this.keyExpiresAt = fetchedAt + WbiSigner.KEY_TTL_MS;
+        await this.cacheKeys(this.imgKey, this.subKey, fetchedAt);
         Logger.info(TAG, 'WBI keys fetched and cached');
       } finally {
         httpRequest.destroy();
@@ -107,9 +119,11 @@ class WbiSigner {
   }
 
   async getSignedParams(params: Map<string, string | number>): Promise<Map<string, string | number>> {
-    if (!this.mixinKey) {
+    if (!this.mixinKey || Date.now() >= this.keyExpiresAt) {
       await this.fetchAndCacheWbiKeys();
-      if (!this.mixinKey) throw new Error('WBI mixin key not available');
+    }
+    if (!this.mixinKey || Date.now() >= this.keyExpiresAt) {
+      throw new Error('WBI mixin key is unavailable or expired');
     }
 
     const signedParams = new Map(params);
@@ -162,11 +176,11 @@ class WbiSigner {
   private static readonly CACHE_KEY_SUB = 'wbi_sub_key';
   private static readonly CACHE_KEY_TIME = 'wbi_cache_time';
 
-  private async cacheKeys(imgKey: string, subKey: string): Promise<void> {
+  private async cacheKeys(imgKey: string, subKey: string, savedAt: number): Promise<void> {
     const prefs = PreferencesUtil.getInstance();
     prefs.preferencesPut(WbiSigner.CACHE_KEY_IMG, imgKey);
     prefs.preferencesPut(WbiSigner.CACHE_KEY_SUB, subKey);
-    prefs.preferencesPut(WbiSigner.CACHE_KEY_TIME, Date.now().toString());
+    prefs.preferencesPut(WbiSigner.CACHE_KEY_TIME, savedAt.toString());
   }
 
   private async getCachedKeys(): Promise<BiliWbiInfo | null> {

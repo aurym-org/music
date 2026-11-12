@@ -18,7 +18,8 @@ export class MediaDownloadWriter {
     url: string,
     headers: Record<string, string>,
     path: string,
-    isCurrent: () => boolean
+    isCurrent: () => boolean,
+    onCancelAvailable: (cancel: (() => void) | undefined) => void
   ): Promise<void> {
     const request = http.createHttp();
     let requestDestroyed = false;
@@ -49,22 +50,43 @@ export class MediaDownloadWriter {
       resolveDataEnd = resolve;
     });
     let writeQueue: Promise<void> = Promise.resolve();
+    const cancelDownload = (): void => {
+      if (cancelled) {
+        return;
+      }
+      cancelled = true;
+      resolveDataEnd();
+      destroyRequest();
+    };
+
+    onCancelAvailable(cancelDownload);
 
     const onDataReceive = (chunk: ArrayBuffer): void => {
-      if (chunk.byteLength === 0 || writeError || cancelled) {
+      if (cancelled || writeError) {
         return;
       }
       if (!isCurrent()) {
-        cancelled = true;
-        resolveDataEnd();
-        destroyRequest();
+        cancelDownload();
         return;
       }
+      if (chunk.byteLength === 0) {
+        return;
+      }
+
       receivedBytes += chunk.byteLength;
       writeQueue = writeQueue.then(async () => {
-        if (!writeError && isCurrent()) {
-          await MediaDownloadWriter.writeChunk(file.fd, chunk);
+        if (cancelled || writeError) {
+          return;
         }
+        if (!isCurrent()) {
+          cancelDownload();
+          return;
+        }
+        await MediaDownloadWriter.writeChunk(
+          file.fd,
+          chunk,
+          () => cancelled || !isCurrent()
+        );
       }).catch((error: Error) => {
         writeError = error instanceof Error ? error : new Error(String(error));
         resolveDataEnd();
@@ -93,20 +115,31 @@ export class MediaDownloadWriter {
           throw writeError;
         }
         if (cancelled || !isCurrent()) {
+          cancelDownload();
           return;
         }
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(message);
       }
-      if (cancelled || !isCurrent()) {
+
+      if (!isCurrent()) {
+        cancelDownload();
+        return;
+      }
+      if (cancelled) {
         return;
       }
       if (responseCode !== 200) {
         throw new Error(`HTTP error: ${responseCode}`);
       }
+
       await dataEnd;
       await writeQueue;
-      if (cancelled || !isCurrent()) {
+      if (!isCurrent()) {
+        cancelDownload();
+        return;
+      }
+      if (cancelled) {
         return;
       }
       if (writeError) {
@@ -118,15 +151,26 @@ export class MediaDownloadWriter {
     } finally {
       request.off('dataReceive', onDataReceive);
       request.off('dataEnd', onDataEnd);
+      if (!isCurrent()) {
+        cancelDownload();
+      }
+      onCancelAvailable(undefined);
       destroyRequest();
       await writeQueue;
       fileIo.closeSync(file);
     }
   }
 
-  private static async writeChunk(fd: number, chunk: ArrayBuffer): Promise<void> {
+  private static async writeChunk(
+    fd: number,
+    chunk: ArrayBuffer,
+    shouldStop: () => boolean
+  ): Promise<void> {
     let written = 0;
     while (written < chunk.byteLength) {
+      if (shouldStop()) {
+        return;
+      }
       const count = await fileIo.write(fd, chunk.slice(written));
       if (count <= 0) {
         throw new Error('Write file failed: no bytes written');

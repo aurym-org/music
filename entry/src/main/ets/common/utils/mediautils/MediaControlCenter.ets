@@ -217,7 +217,7 @@ export class MediaControlCenter {
       }
       this.setLoading(false);
       AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, `播放器初始化失败: ${message}`);
-      throw new Error(error.message);
+      throw error instanceof Error ? error : new Error(message);
     } finally {
       if (this.initPromise === pendingInit) {
         this.initPromise = undefined;
