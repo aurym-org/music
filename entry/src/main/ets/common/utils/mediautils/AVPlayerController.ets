@@ -377,7 +377,7 @@ export class AVPlayerController {
   private switchSpeed(speed: number): media.PlaybackSpeed {
     let avPlayerSpeed: media.PlaybackSpeed | undefined;
     avPlayerSpeed = AVPlayerController.SPEED_MAP.get(speed);
-    if (!avPlayerSpeed) {
+    if (avPlayerSpeed === undefined) {
       avPlayerSpeed = media.PlaybackSpeed.SPEED_FORWARD_1_00_X;
     }
     Logger.info(TAG, `avPlayerSpeed is ${avPlayerSpeed}`)
