@@ -98,8 +98,16 @@ export default class EntryAbility extends UIAbility {
   onWindowStageDestroy(): void {
     // Main window is destroyed, release UI related resources.
     this.windowStageGeneration++;
-    this.windowObj?.off('windowSizeChange', this.onWindowSizeChange);
+    const windowToRelease = this.windowObj;
     this.windowObj = undefined;
+    if (windowToRelease) {
+      try {
+        windowToRelease.off('windowSizeChange', this.onWindowSizeChange);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.warn(TAG, `Failed to detach window-size listener: ${message}`);
+      }
+    }
     AppStorage.setOrCreate(APP_STORAGE_KEYS.WINDOW, undefined);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.WINDOW_STAGE, undefined);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.UI_CONTEXT, undefined);

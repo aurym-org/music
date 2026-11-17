@@ -23,7 +23,6 @@ export class AVPlayerController {
   public avPlayer?: media.AVPlayer;
   private avSessionController: AVSessionController | undefined = undefined;
   private eventCallbacks: AVPlayerEventCallbacks | undefined = undefined;
-  private currentState: media.AVPlayerState = 'idle';
   private waitPlay: boolean = false;
   private urlRetryCount: number = 0;
   private static readonly MAX_URL_RETRY: number = 2;
@@ -38,6 +37,13 @@ export class AVPlayerController {
   private playRequestGeneration: number = 0;
   private preparedTimeout?: number;
   private activeSourceVersion: number = -1;
+  // Separate from the event version: source setup can fail after the version
+  // is assigned but before AVPlayer accepts the URL.
+  private activeSourceConfigured: boolean = false;
+  // Each source transition gets a generation so duplicate/late native error
+  // events cannot start parallel CDN recovery for the same failed source.
+  private sourceGeneration: number = 0;
+  private handledErrorSourceGeneration: number = -1;
   private completedHandledVersion: number = -1;
   private isCurrentLocal: boolean = false;
   private localFile: fileIo.File | null = null;
@@ -49,15 +55,26 @@ export class AVPlayerController {
     this.eventCallbacks = callbacks;
   }
 
-  public waitForPrepared(expectedVersion: number = getCurrentVersion()): Promise<void> {
+  private waitForPrepared(expectedVersion: number = getCurrentVersion()): Promise<void> {
     if (!isVersionMatch(expectedVersion)) {
       return Promise.reject(new Error('Waiting for preparation was cancelled'));
     }
-    if (this.currentState === 'prepared') {
+    const player = this.avPlayer;
+    if (!player) {
+      return Promise.reject(new Error('AVPlayer is unavailable while waiting for preparation'));
+    }
+    if (this.activeSourceVersion !== expectedVersion) {
+      return Promise.reject(new Error('Waiting for preparation of a stale media source'));
+    }
+
+    // Read native state directly because stateChange callbacks may arrive late.
+    const nativeState = player.state;
+    if (nativeState === 'prepared' || nativeState === 'playing' ||
+      nativeState === 'paused' || nativeState === 'completed') {
       return Promise.resolve();
     }
-    if (this.currentState === 'error' || this.currentState === 'released') {
-      return Promise.reject(new Error(`AVPlayer cannot prepare from state: ${this.currentState}`));
+    if (nativeState === 'error' || nativeState === 'released') {
+      return Promise.reject(new Error(`AVPlayer cannot prepare from state: ${nativeState}`));
     }
     if (!this.preparedPromise) {
       this.preparedPromise = new Promise<void>((resolve, reject) => {
@@ -71,7 +88,36 @@ export class AVPlayerController {
         }, 20000);
       });
     }
-    return this.preparedPromise;
+
+    // Close the check/subscribe race: native state can advance after the first
+    // read above but before the waiter is installed. Re-read synchronously now
+    // that preparedResolve/preparedReject exist, so a state event delivered in
+    // that narrow window cannot be lost and leave the caller waiting 20 seconds.
+    const pendingPromise = this.preparedPromise;
+    const latestState = player.state;
+    if (this.avPlayer !== player || !isVersionMatch(expectedVersion) ||
+      this.activeSourceVersion !== expectedVersion) {
+      const error = new Error('Waiting for preparation was cancelled by a source change');
+      const reject = this.preparedReject;
+      this.cleanupPreparedPromise();
+      reject?.(error);
+      return pendingPromise;
+    }
+    if (latestState === 'prepared' || latestState === 'playing' ||
+      latestState === 'paused' || latestState === 'completed') {
+      const resolve = this.preparedResolve;
+      this.cleanupPreparedPromise();
+      resolve?.();
+      return pendingPromise;
+    }
+    if (latestState === 'error' || latestState === 'released') {
+      const error = new Error(`AVPlayer cannot prepare from state: ${latestState}`);
+      const reject = this.preparedReject;
+      this.cleanupPreparedPromise();
+      reject?.(error);
+      return pendingPromise;
+    }
+    return pendingPromise;
   }
 
   private cleanupPreparedPromise(): void {
@@ -82,6 +128,11 @@ export class AVPlayerController {
     this.preparedResolve = undefined;
     this.preparedReject = undefined;
     this.preparedPromise = undefined;
+  }
+
+  public hasActiveSourceForVersion(expectedVersion: number): boolean {
+    return this.avPlayer !== undefined && this.activeSourceVersion === expectedVersion &&
+      this.activeSourceConfigured;
   }
 
   private isLocalSource(url: string): boolean {
@@ -112,7 +163,7 @@ export class AVPlayerController {
     return operationTask;
   }
 
-  public setPlayerUrl(url: string, expectedVersion: number = getCurrentVersion()): Promise<boolean> {
+  private setPlayerUrl(url: string, expectedVersion: number = getCurrentVersion()): Promise<boolean> {
     // All asynchronous AVPlayer mutations share one queue. This prevents reset,
     // prepare, play, stop, and release from racing each other.
     return this.enqueuePlayerOperation(() => this.applyPlayerUrl(url, expectedVersion));
@@ -136,6 +187,13 @@ export class AVPlayerController {
       this.cleanupPreparedPromise();
     }
     const isNewSelection = this.activeSourceVersion !== expectedVersion;
+    // Invalidate callbacks from the old source before reset() yields. This is
+    // necessary even for a same-song source replacement (for example, CDN
+    // fallback), where the song version itself has not changed.
+    this.sourceGeneration++;
+    this.handledErrorSourceGeneration = -1;
+    this.activeSourceVersion = -1;
+    this.activeSourceConfigured = false;
     if (isNewSelection) {
       this.urlRetryCount = 0;
       this.completedHandledVersion = -1;
@@ -143,7 +201,6 @@ export class AVPlayerController {
 
     // Reset the player before closing a file descriptor used by the old source.
     await player.reset();
-    this.currentState = player.state;
     this.closeLocalFile();
     this.isCurrentLocal = false;
 
@@ -180,6 +237,7 @@ export class AVPlayerController {
     if (!isVersionMatch(expectedVersion) || this.avPlayer !== player) {
       return false;
     }
+    this.activeSourceConfigured = true;
     return true;
   }
 
@@ -199,21 +257,22 @@ export class AVPlayerController {
       try {
         sourceConfigured = await this.setPlayerUrl(src, expectedVersion);
       } catch (sourceError) {
+        const sourceMessage = sourceError instanceof Error ? sourceError.message : String(sourceError);
         if (!this.isLocalSource(src) || !isVersionMatch(expectedVersion)) {
-          throw new Error(sourceError.message);
+          throw new Error(sourceMessage);
         }
 
         const bvid = AppStorage.get<string>(APP_STORAGE_KEYS.CURRENT_BVID);
         const cid = AppStorage.get<number>(APP_STORAGE_KEYS.CURRENT_CID);
         if (!bvid || cid === undefined || !Number.isInteger(cid) || cid <= 0) {
-          throw new Error(sourceError.message);
+          throw new Error(sourceMessage);
         }
 
-        const message = sourceError instanceof Error ? sourceError.message : String(sourceError);
+        const message = sourceMessage;
         Logger.warn(TAG, `Cached media could not be opened; trying remote source: ${message}`);
         MediaResourceManager.getInstance().removeSongFile(bvid);
 
-        const remoteUrl = await new SongItemBuilder().getBiliPlayUrl(bvid, cid);
+        const remoteUrl = await new SongItemBuilder().getBiliPlayUrl(bvid, cid, 0, expectedVersion);
         if (!isVersionMatch(expectedVersion)) {
           return false;
         }
@@ -232,11 +291,15 @@ export class AVPlayerController {
       return isVersionMatch(expectedVersion);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      Logger.error(TAG, `loadSongAsset failed: ${message}`);
-      if (isVersionMatch(expectedVersion)) {
-        AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, false);
-        AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, `歌曲加载失败: ${message}`);
+      if (!isVersionMatch(expectedVersion) ||
+        message === 'Media source changed before preparation completed' ||
+        message.startsWith('Waiting for preparation was cancelled')) {
+        Logger.debug(TAG, `Ignoring cancelled media load: ${message}`);
+        return false;
       }
+      Logger.error(TAG, `loadSongAsset failed: ${message}`);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, false);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, `歌曲加载失败: ${message}`);
       return false;
     }
   }
@@ -244,7 +307,6 @@ export class AVPlayerController {
 
   public static getInstance(): AVPlayerController {
     if (!AVPlayerController.avPlayerController) {
-      Logger.info(TAG, 'no AVPlayerController')
       AVPlayerController.avPlayerController = new AVPlayerController();
     }
     return AVPlayerController.avPlayerController;
@@ -260,6 +322,10 @@ export class AVPlayerController {
     [1.75, media.PlaybackSpeed.SPEED_FORWARD_1_75_X],
     [2, media.PlaybackSpeed.SPEED_FORWARD_2_00_X],
   ]);
+
+  public static normalizePlaybackSpeed(speed: number): number {
+    return Number.isFinite(speed) && AVPlayerController.SPEED_MAP.has(speed) ? speed : 1;
+  }
 
   // [Start initAVPlayer]
   // Initialize the player
@@ -292,23 +358,11 @@ export class AVPlayerController {
     }
 
     this.avPlayer = player;
-    this.currentState = player.state;
     Logger.info(TAG, `createAVPlayer success, curState is ${player.state}`);
     this.setAVPlayerCallbacks();
     Logger.info(TAG, `setAVPlayerCallbacks success, curState is ${player.state}`);
   }
   // [End initAVPlayer]
-
-  // [Start prepare]
-  // Prepare the player
-  public async prepare(): Promise<void> {
-    const player = this.avPlayer;
-    if (!player) {
-      Logger.warn(TAG, 'avPlayer is unavailable');
-      return;
-    }
-    await this.preparePlayer(player);
-  }
 
   private async preparePlayer(player: media.AVPlayer): Promise<void> {
     await this.enqueuePlayerOperation(async () => {
@@ -331,7 +385,6 @@ export class AVPlayerController {
 
     const state = player.state;
     if (state === 'prepared' || state === 'playing' || state === 'paused' || state === 'completed') {
-      this.currentState = state;
       return;
     }
     if (state !== 'initialized' && state !== 'stopped') {
@@ -343,7 +396,6 @@ export class AVPlayerController {
     try {
       await player.prepare();
       if (this.avPlayer === player) {
-        this.currentState = player.state;
         Logger.info(TAG, `prepare success, current state is ${player.state}`);
       }
     } finally {
@@ -352,7 +404,6 @@ export class AVPlayerController {
       }
     }
   }
-  // [End prepare]
 
   private enqueuePlayerAction(
     actionName: string,
@@ -391,7 +442,7 @@ export class AVPlayerController {
       return;
     }
 
-    const normalizedSpeed = AVPlayerController.SPEED_MAP.has(speed) ? speed : 1;
+    const normalizedSpeed = AVPlayerController.normalizePlaybackSpeed(speed);
     if (normalizedSpeed !== speed) {
       Logger.warn(TAG, `Unsupported playback speed ${speed}; falling back to 1x`);
     }
@@ -450,13 +501,11 @@ export class AVPlayerController {
         return;
       }
       if (player.state === 'playing') {
-        this.currentState = 'playing';
         this.waitPlay = false;
         Logger.info(TAG, 'AVPlayer is already playing');
         return;
       }
       let playerState = player.state;
-      this.currentState = playerState;
       if (playerState === 'stopped') {
         // AVPlayer must be prepared again after stop(); play() is not a valid
         // state transition from stopped. Preserve the requested play intent
@@ -468,7 +517,6 @@ export class AVPlayerController {
           return;
         }
         playerState = player.state;
-        this.currentState = playerState;
       }
       if (playerState !== 'prepared' && playerState !== 'paused' &&
         playerState !== 'completed') {
@@ -520,7 +568,6 @@ export class AVPlayerController {
         return;
       }
       const playerState = player.state;
-      this.currentState = playerState;
       if (playerState !== 'playing') {
         // pause() is only valid while playing; keep this operation idempotent.
         this.updateIsPlay(false);
@@ -528,7 +575,6 @@ export class AVPlayerController {
       }
       await player.pause();
       if (this.avPlayer === player) {
-        this.currentState = 'paused';
         this.updateIsPlay(false);
       }
     });
@@ -595,7 +641,6 @@ export class AVPlayerController {
         return;
       }
       const playerState = player.state;
-      this.currentState = playerState;
       const canStop = playerState === 'prepared' || playerState === 'playing' ||
         playerState === 'paused' || playerState === 'completed';
       if (!canStop) {
@@ -605,7 +650,6 @@ export class AVPlayerController {
       }
       await player.stop();
       if (this.avPlayer === player) {
-        this.currentState = 'stopped';
         this.updateIsPlay(false);
         Logger.info(TAG, 'AVPlayer stopped successfully');
       }
@@ -683,6 +727,27 @@ export class AVPlayerController {
   }
   // [End setSilentMode]
 
+  private safelyRemovePlayerListener(
+    eventName: string,
+    removeListener: () => void
+  ): void {
+    try {
+      removeListener();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(TAG, `Failed to detach AVPlayer ${eventName} listener: ${message}`);
+    }
+  }
+
+  private safelyRunReleaseCleanup(actionName: string, cleanup: () => void): void {
+    try {
+      cleanup();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(TAG, `AVPlayer release cleanup failed (${actionName}): ${message}`);
+    }
+  }
+
   // [Start release]
   public release(): Promise<void> {
     this.initGeneration++;
@@ -695,7 +760,6 @@ export class AVPlayerController {
 
     const player = this.avPlayer;
     this.avPlayer = undefined;
-    this.currentState = 'released';
     this.waitPlay = false;
     this.playRequestGeneration++;
     this.isCurrentLocal = false;
@@ -706,18 +770,25 @@ export class AVPlayerController {
     // across player releases. Volume remains managed by persisted preferences.
     this.desiredSpeed = undefined;
     this.activeSourceVersion = -1;
+    this.activeSourceConfigured = false;
+    this.sourceGeneration++;
+    this.handledErrorSourceGeneration = -1;
     this.completedHandledVersion = -1;
 
     if (player) {
-      // Stop receiving callbacks immediately. The pending source transition is
-      // still allowed to settle before the native player is actually released.
-      player.off('error');
-      player.off('stateChange');
-      player.off('durationUpdate');
-      player.off('timeUpdate');
-      player.off('audioInterrupt');
-      player.off('volumeChange');
-      player.off('audioOutputDeviceChangeWithInfo');
+      // Stop receiving callbacks immediately. Detach each listener separately:
+      // a single native off() failure must never prevent player.release() and
+      // file-descriptor cleanup from running.
+      this.safelyRemovePlayerListener('error', () => player.off('error'));
+      this.safelyRemovePlayerListener('stateChange', () => player.off('stateChange'));
+      this.safelyRemovePlayerListener('durationUpdate', () => player.off('durationUpdate'));
+      this.safelyRemovePlayerListener('timeUpdate', () => player.off('timeUpdate'));
+      this.safelyRemovePlayerListener('audioInterrupt', () => player.off('audioInterrupt'));
+      this.safelyRemovePlayerListener('volumeChange', () => player.off('volumeChange'));
+      this.safelyRemovePlayerListener(
+        'audioOutputDeviceChangeWithInfo',
+        () => player.off('audioOutputDeviceChangeWithInfo')
+      );
     }
 
     const releaseTask = this.playerOperationPromise.then(async () => {
@@ -732,9 +803,17 @@ export class AVPlayerController {
         const message = error instanceof Error ? error.message : String(error);
         Logger.error(TAG, `AVPlayer release failed: ${message}`);
       } finally {
-        // Keep the file descriptor alive until AVPlayer has finished releasing
-        // the source that may still be reading from it.
-        this.closeLocalFile();
+        // Keep the file descriptor and cache pin alive until AVPlayer has
+        // finished releasing the source that may still be reading from it.
+        // Run each cleanup independently: a cache bookkeeping failure must
+        // never prevent the local descriptor from being closed (or vice versa).
+        this.safelyRunReleaseCleanup('local file', () => this.closeLocalFile());
+        this.safelyRunReleaseCleanup('active cache pin', () => {
+          MediaResourceManager.getInstance().setActiveSong(undefined);
+        });
+        this.safelyRunReleaseCleanup('cache eviction', () => {
+          MediaResourceManager.getInstance().cleanupCacheByLimit();
+        });
       }
     });
     this.playerOperationPromise = releaseTask.then(() => undefined, () => undefined);
@@ -824,6 +903,12 @@ export class AVPlayerController {
         Logger.debug(TAG, 'Ignoring stale AVPlayer error from a previous song selection');
         return;
       }
+      const failedSourceGeneration = this.sourceGeneration;
+      if (this.handledErrorSourceGeneration === failedSourceGeneration) {
+        Logger.debug(TAG, `Ignoring duplicate AVPlayer error for source generation ${failedSourceGeneration}`);
+        return;
+      }
+      this.handledErrorSourceGeneration = failedSourceGeneration;
 
       const bvid = AppStorage.get<string>(APP_STORAGE_KEYS.CURRENT_BVID);
       const cid = AppStorage.get<number>(APP_STORAGE_KEYS.CURRENT_CID);
@@ -848,14 +933,19 @@ export class AVPlayerController {
       }
 
       if (bvid && cid !== undefined && retryCount <= AVPlayerController.MAX_URL_RETRY) {
+        // Surface an in-progress automatic source recovery to the UI and avoid
+        // treating the temporary native `error` state as a terminal failure.
+        // A play tap during this period updates waitPlay; the recovery then
+        // resumes according to the latest user intent.
+        AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, true);
         try {
           const songItemBuilder = new SongItemBuilder();
           // Retry 1 selects the first backup URL; retry 2 selects the next one.
           // The builder refreshes the signed URL on every attempt.
           const candidateIndex = failedLocalSource ? 0 : retryCount;
-          const url = await songItemBuilder.getBiliPlayUrl(bvid, cid, candidateIndex);
+          const url = await songItemBuilder.getBiliPlayUrl(bvid, cid, candidateIndex, currentVersion);
           if (!isVersionMatch(currentVersion) || this.avPlayer !== player ||
-            generation !== this.initGeneration) {
+            generation !== this.initGeneration || this.sourceGeneration !== failedSourceGeneration) {
             return;
           }
 
@@ -914,7 +1004,6 @@ export class AVPlayerController {
         this.activeSourceVersion !== getCurrentVersion()) {
         return;
       }
-      this.currentState = state;
       switch (state) {
         case 'idle':
           Logger.info(TAG, `state idle called , reason is ${reason}`);
@@ -1062,20 +1151,21 @@ export class AVPlayerController {
       return;
     }
     player.on('audioOutputDeviceChangeWithInfo', (deviceChangeInfo: audio.AudioStreamDeviceChangeInfo) => {
-      if (this.avPlayer !== player || generation !== this.initGeneration) {
+      if (this.avPlayer !== player || generation !== this.initGeneration || !deviceChangeInfo) {
         return;
       }
-      const currentDevice = deviceChangeInfo.devices[0];
+      const devices = deviceChangeInfo.devices;
+      const currentDevice = Array.isArray(devices) && devices.length > 0 ? devices[0] : undefined;
       if (currentDevice) {
         // Device identifiers and addresses are intentionally omitted from logs.
         Logger.info(TAG, 'Audio output device information changed');
       }
-      Logger.info(TAG, `Device change reason: ${deviceChangeInfo.changeReason}`);
-      if (deviceChangeInfo.changeReason === audio.AudioStreamDeviceChangeReason.REASON_OLD_DEVICE_UNAVAILABLE) {
-        Logger.info(TAG, `Device change reason: ${deviceChangeInfo.changeReason}`);
+      const changeReason = deviceChangeInfo.changeReason;
+      Logger.info(TAG, `Device change reason: ${changeReason}`);
+      if (changeReason === audio.AudioStreamDeviceChangeReason.REASON_OLD_DEVICE_UNAVAILABLE) {
         this.eventCallbacks?.onPause();
       }
-    })
+    });
   }
 
   // Update play state

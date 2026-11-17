@@ -7,6 +7,7 @@
 import { mediaquery } from '@kit.ArkUI';
 import { APP_STORAGE_KEYS } from '../constants/AppStorageKeys';
 import { BreakpointConstants } from '../constants/BreakpointConstants';
+import Logger from './Logger';
 
 declare interface BreakPointTypeOption<T> {
   sm?: T,
@@ -62,35 +63,66 @@ export class BreakpointSystem {
     }
   }
 
+  private safelyRemoveListener(
+    name: string,
+    listener: mediaquery.MediaQueryListener | undefined,
+    callback: (result: mediaquery.MediaQueryResult) => void
+  ): boolean {
+    if (!listener) {
+      return true;
+    }
+    try {
+      listener.off('change', callback);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn('BreakpointSystem', `Failed to detach ${name} listener: ${message}`);
+      return false;
+    }
+  }
+
   public register(): void {
+    if (this.smListener && this.mdListener && this.lgListener) {
+      return;
+    }
+    this.unregister();
     if (this.smListener || this.mdListener || this.lgListener) {
       return;
     }
+
     const uiContext: UIContext | undefined = AppStorage.get(APP_STORAGE_KEYS.UI_CONTEXT) as UIContext | undefined;
     if (!uiContext) {
       return;
     }
-    this.smListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_SM);
-    this.smListener.on('change', this.isBreakpointSM);
-    this.mdListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_MD);
-    this.mdListener.on('change', this.isBreakpointMD);
-    this.lgListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_LG);
-    this.lgListener.on('change', this.isBreakpointLG);
 
+    try {
+      // Store each reference before registering its callback so a partial
+      // registration failure can be rolled back by unregister().
+      this.smListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_SM);
+      this.smListener.on('change', this.isBreakpointSM);
+      this.mdListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_MD);
+      this.mdListener.on('change', this.isBreakpointMD);
+      this.lgListener = uiContext.getMediaQuery().matchMediaSync(BreakpointConstants.RANGE_LG);
+      this.lgListener.on('change', this.isBreakpointLG);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error('BreakpointSystem', `Breakpoint listener registration failed: ${message}`);
+      this.unregister();
+    }
   }
 
   public unregister(): void {
-    if (this.smListener) {
-      this.smListener.off('change', this.isBreakpointSM);
+    // Clear each reference only after its listener is successfully detached.
+    // A failed off() remains reachable for the next cleanup attempt.
+    if (this.safelyRemoveListener('small', this.smListener, this.isBreakpointSM)) {
+      this.smListener = undefined;
     }
-    if (this.mdListener) {
-      this.mdListener.off('change', this.isBreakpointMD);
+    if (this.safelyRemoveListener('medium', this.mdListener, this.isBreakpointMD)) {
+      this.mdListener = undefined;
     }
-    if (this.lgListener) {
-      this.lgListener.off('change', this.isBreakpointLG);
+    if (this.safelyRemoveListener('large', this.lgListener, this.isBreakpointLG)) {
+      this.lgListener = undefined;
     }
-    this.smListener = undefined;
-    this.mdListener = undefined;
-    this.lgListener = undefined;
   }
+
 }

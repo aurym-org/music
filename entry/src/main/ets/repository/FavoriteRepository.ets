@@ -42,6 +42,13 @@ class PageRequestError extends Error {
   }
 }
 
+class RequestCancelledError extends Error {
+  constructor() {
+    super('Favorite-list request cancelled');
+    this.name = 'RequestCancelledError';
+  }
+}
+
 function isRetryableHttpStatus(statusCode: number): boolean {
   return statusCode === 408 || statusCode === 425 || statusCode === 429 ||
     (statusCode >= 500 && statusCode <= 599);
@@ -65,16 +72,30 @@ function convertToSongItem(item: BiliFavDetailItemModel, index: number): SongIte
   const bvid = typeof rawBvid === 'string' ? rawBvid.trim() : '';
   const cid = item.ugc?.first_cid;
   const title = typeof item.title === 'string' ? item.title.trim() : '';
-  if (!bvid || !title || typeof cid !== 'number' || !Number.isInteger(cid) || cid <= 0) {
+  if (!/^[A-Za-z0-9_-]{5,64}$/.test(bvid) || !title ||
+    typeof cid !== 'number' || !Number.isInteger(cid) || cid <= 0) {
     return undefined;
   }
 
-  const info = parser.parse(item);
-  const cover = typeof item.cover === 'string' ? item.cover.trim() : '';
-  const singer = info.singer || item.upper?.name || '';
+  // API payloads can be partially malformed. Normalize optional text before
+  // passing it to the parser so one bad intro/UP name cannot abort a whole page.
+  const upperName = typeof item.upper?.name === 'string' ? item.upper.name.trim() : '';
+  const intro = typeof item.intro === 'string' ? item.intro : '';
+  const cover = typeof item.cover === 'string' && /^https?:\/\//i.test(item.cover.trim())
+    ? item.cover.trim()
+    : '';
+  const info = parser.parse({
+    id: item.id,
+    title,
+    intro,
+    upper: { name: upperName }
+  });
+  const singer = typeof info.singer === 'string' && info.singer.length > 0
+    ? info.singer
+    : upperName;
   return {
     id: item.id,
-    title: info.title || title,
+    title: typeof info.title === 'string' && info.title.length > 0 ? info.title : title,
     singer,
     label: cover ? `${cover}@384w_216h.avif` : '',
     src: '',
@@ -122,12 +143,23 @@ async function requestPage(
   mediaId: number,
   page: number,
   pageSize: number,
+  shouldContinue: () => boolean,
   retries: number = 2
 ): Promise<PageResult> {
-  const requestInfo = await buildFavListRequest(mediaId, page, pageSize);
+  if (!shouldContinue()) {
+    throw new RequestCancelledError();
+  }
+  let requestInfo = await buildFavListRequest(mediaId, page, pageSize);
+  let refreshedWbiKey = false;
+  if (!shouldContinue()) {
+    throw new RequestCancelledError();
+  }
   let lastError: Error | undefined = undefined;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (!shouldContinue()) {
+      throw new RequestCancelledError();
+    }
     const httpRequest = http.createHttp();
     const requestStartedAt = Date.now();
     let responseCode: number | undefined = undefined;
@@ -147,6 +179,10 @@ async function requestPage(
         NetworkDiagnostics.failure(TAG, 'favorite.resource.list', requestStartedAt, 'transport_error', attempt + 1, undefined, undefined, NetworkDiagnostics.getSystemErrorCode(error));
         diagnosticLogged = true;
         throw new PageRequestError(`网络请求失败: ${message}`, true);
+      }
+
+      if (!shouldContinue()) {
+        throw new RequestCancelledError();
       }
 
       responseCode = response.responseCode;
@@ -173,21 +209,38 @@ async function requestPage(
         throw new PageRequestError(`收藏夹响应 JSON 解析失败: ${message}`, false);
       }
 
-      if (!responseData || typeof responseData !== 'object') {
+      if (!responseData || typeof responseData !== 'object' || typeof responseData.code !== 'number') {
         throw new PageRequestError('收藏夹接口返回的数据格式不正确', false);
       }
       if (responseData.code !== 0) {
         NetworkDiagnostics.failure(TAG, 'favorite.resource.list', requestStartedAt, 'business_error', attempt + 1, responseCode, responseData.code);
         diagnosticLogged = true;
-        // Business/risk-control errors generally need a changed credential or
-        // request, not an identical retry. Keep them visible to the caller.
+        // A stale WBI key is recoverable once. Re-sign the same page after a
+        // forced refresh; all other business/risk-control errors fail fast.
+        if (responseData.code === -403 && !refreshedWbiKey) {
+          refreshedWbiKey = true;
+          Logger.warn(TAG, `收藏夹第 ${page} 页签名被拒绝，强制刷新 WBI 密钥后重试`);
+          await wbiSigner.fetchAndCacheWbiKeys(true);
+          if (!shouldContinue()) {
+            throw new RequestCancelledError();
+          }
+          requestInfo = await buildFavListRequest(mediaId, page, pageSize);
+          if (!shouldContinue()) {
+            throw new RequestCancelledError();
+          }
+          // The refresh is a credential recovery, not a transport retry. It
+          // must not consume one of the bounded transient retry slots.
+          attempt--;
+          continue;
+        }
         throw new PageRequestError(
           `API 错误: ${responseData.code} - ${responseData.message}`,
           false
         );
       }
       const pageData = responseData.data;
-      if (!pageData || !Array.isArray(pageData.medias)) {
+      if (!pageData || !Array.isArray(pageData.medias) ||
+        (pageData.has_more !== true && pageData.has_more !== false)) {
         throw new PageRequestError('收藏夹接口返回的数据格式不正确', false);
       }
 
@@ -213,6 +266,9 @@ async function requestPage(
         hasMore: pageData.has_more === true
       };
     } catch (error) {
+      if (error instanceof RequestCancelledError || !shouldContinue()) {
+        throw new RequestCancelledError();
+      }
       if (!diagnosticLogged) {
         NetworkDiagnostics.failure(TAG, 'favorite.resource.list', requestStartedAt, 'response_validation_error', attempt + 1, responseCode);
       }
@@ -228,17 +284,32 @@ async function requestPage(
       }
       retryDelayMs = 500 * Math.pow(2, attempt);
     } finally {
-      httpRequest.destroy();
+      try {
+        httpRequest.destroy();
+      } catch (destroyError) {
+        const message = destroyError instanceof Error ? destroyError.message : String(destroyError);
+        Logger.warn(TAG, `HTTP client cleanup failed: ${message}`);
+      }
     }
     if (retryDelayMs > 0) {
       await new Promise<void>(resolve => setTimeout(resolve, retryDelayMs));
+      if (!shouldContinue()) {
+        throw new RequestCancelledError();
+      }
     }
   }
   throw lastError || new Error(`第 ${page} 页加载失败（未知原因）`);
 }
 
-function appendPageSongs(target: SongItem[], result: PageResult): void {
+function appendPageSongs(target: SongItem[], result: PageResult, seenSongKeys: Set<string>): void {
   for (const song of result.songs) {
+    // Concurrent page retrieval can overlap when the favorite folder changes
+    // while pagination is in flight. Keep the first occurrence and preserve API order.
+    const key = `${song.bvid}:${song.cid}`;
+    if (seenSongKeys.has(key)) {
+      continue;
+    }
+    seenSongKeys.add(key);
     target.push(song);
   }
 }
@@ -247,10 +318,17 @@ function appendPageSongs(target: SongItem[], result: PageResult): void {
  * Fetch all playable video entries from a Bilibili favorite folder.
  * The API accepts at most 20 records per page; batches preserve page order.
  */
-async function getFavoriteDetail(mediaId: number, pageSize: number = API_MAX_PAGE_SIZE): Promise<SongItem[]> {
+async function getFavoriteDetail(
+  mediaId: number,
+  pageSize: number = API_MAX_PAGE_SIZE,
+  shouldContinue: () => boolean = () => true
+): Promise<SongItem[]> {
   Logger.info(TAG, `开始获取收藏夹 ${mediaId} 的所有歌曲，每页 ${pageSize} 条`);
 
   try {
+    if (!shouldContinue()) {
+      return [];
+    }
     if (!Number.isInteger(mediaId) || mediaId <= 0) {
       throw new Error('收藏夹 ID 无效');
     }
@@ -263,8 +341,13 @@ async function getFavoriteDetail(mediaId: number, pageSize: number = API_MAX_PAG
       Logger.warn(TAG, `接口每页最多返回 ${API_MAX_PAGE_SIZE} 条，已将 pageSize 从 ${pageSize} 调整为 ${effectivePageSize}`);
     }
 
-    const firstResult = await requestPage(mediaId, 1, effectivePageSize);
-    const allSongs: SongItem[] = [...firstResult.songs];
+    const firstResult = await requestPage(mediaId, 1, effectivePageSize, shouldContinue);
+    if (!shouldContinue()) {
+      return [];
+    }
+    const allSongs: SongItem[] = [];
+    const seenSongKeys = new Set<string>();
+    appendPageSongs(allSongs, firstResult, seenSongKeys);
     const totalPages = firstResult.totalCount === undefined
       ? undefined
       : Math.ceil(firstResult.totalCount / effectivePageSize);
@@ -292,6 +375,9 @@ async function getFavoriteDetail(mediaId: number, pageSize: number = API_MAX_PAG
     // estimate indicates more data. The estimate is advisory: an empty page
     // with has_more=false terminates stale over-reported counts.
     while (hasMore || (!countEstimateExhausted && totalPages !== undefined && nextPage <= totalPages)) {
+      if (!shouldContinue()) {
+        return [];
+      }
       if (nextPage > MAX_FALLBACK_PAGES) {
         throw new Error(`收藏夹分页超过安全上限 ${MAX_FALLBACK_PAGES}`);
       }
@@ -302,13 +388,16 @@ async function getFavoriteDetail(mediaId: number, pageSize: number = API_MAX_PAG
         : nextPage;
       const batch: Promise<PageResult>[] = [];
       for (let page = nextPage; page <= batchEnd; page++) {
-        batch.push(requestPage(mediaId, page, effectivePageSize));
+        batch.push(requestPage(mediaId, page, effectivePageSize, shouldContinue));
       }
       const results = await Promise.all(batch);
+      if (!shouldContinue()) {
+        return [];
+      }
 
       let lastProcessedPage = nextPage - 1;
       for (const result of results) {
-        appendPageSongs(allSongs, result);
+        appendPageSongs(allSongs, result, seenSongKeys);
         lastProcessedPage++;
         hasMore = result.hasMore;
 
@@ -331,6 +420,10 @@ async function getFavoriteDetail(mediaId: number, pageSize: number = API_MAX_PAG
     Logger.info(TAG, `收藏夹获取完毕，共 ${allSongs.length} 首可播放歌曲`);
     return allSongs;
   } catch (error) {
+    if (error instanceof RequestCancelledError || !shouldContinue()) {
+      Logger.info(TAG, '收藏夹加载已取消');
+      return [];
+    }
     const errorMessage = error instanceof Error ? error.message : String(error);
     Logger.error(TAG, `获取收藏夹失败: ${errorMessage}`);
     throw new Error(`获取收藏夹数据失败: ${errorMessage}`);

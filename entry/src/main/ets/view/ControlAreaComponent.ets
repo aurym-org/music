@@ -131,6 +131,7 @@ export struct ControlAreaComponent {
           style: SliderStyle.OutSet,
           value: this.value
         })
+          .enabled(!this.isLoading && this.max > 0)
           .selectedColor($r('app.color.slider_select'))
           .trackColor($r('app.color.slider_track'))
           .onChange((value: number, mode: SliderChangeMode) => {

@@ -4,6 +4,7 @@
  * https://opensource.org/licenses/MIT
  */
 
+import { BusinessError } from '@kit.BasicServicesKit';
 import Logger from './Logger';
 
 export type NetworkOperation = 'wbi.nav' | 'favorite.resource.list' | 'player.playurl' | 'media.download';

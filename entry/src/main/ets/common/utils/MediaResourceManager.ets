@@ -91,16 +91,31 @@ export class MediaResourceManager {
   /**
    * 确保所有媒体子目录存在
    */
-  private ensureDirectories(): void {
-    const root = this.getRootDir();
-    if (!root) return;
+  private ensureDirectory(path: string): void {
+    if (!path) return;
     try {
-      fileIo.mkdirSync(root, true);
-      fileIo.mkdirSync(this.getSubDir(this.SONG_SUBDIR), true);
-      fileIo.mkdirSync(this.getSubDir(this.COVER_SUBDIR), true);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      Logger.warn(TAG, `Failed to create media directories: ${message}`);
+      if (fileIo.accessSync(path)) {
+        return;
+      }
+    } catch {
+      // A missing path is created below; creation errors are logged by caller.
+    }
+    fileIo.mkdirSync(path, true);
+  }
+
+  private ensureDirectories(): void {
+    const directories = [
+      this.getRootDir(),
+      this.getSubDir(this.SONG_SUBDIR),
+      this.getSubDir(this.COVER_SUBDIR)
+    ];
+    for (const directory of directories) {
+      try {
+        this.ensureDirectory(directory);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.warn(TAG, `Failed to ensure media directory '${directory}': ${message}`);
+      }
     }
   }
 
@@ -494,18 +509,6 @@ export class MediaResourceManager {
       this.removePartFiles(songPath);
     }
     Logger.info(TAG, `Removed song file for ${bvid}`);
-  }
-
-  /**
-   * 删除歌曲及其同名封面（如果有）。
-   */
-  public removeSong(bvid: string): void {
-    if (!this.isValidBvid(bvid)) {
-      return;
-    }
-    this.removeSongFile(bvid);
-    this.removeCover(bvid);
-    Logger.info(TAG, `Removed song and cover for ${bvid}`);
   }
 
   /**

@@ -122,7 +122,7 @@ export class BiliMusicParser {
    * ordinary prose and would defeat the fast path.
    */
   private hasDescriptionLabelCue(value: string): boolean {
-    return /(歌曲名称|歌曲名|歌名|曲名|作品名|中文名|歌曲原唱|原唱歌手|歌手名|歌手\s*[:：]|演唱者|演唱\s*[:：]|vocal(?:s)?\s*[:：]|singer\s*[:：]|performer\s*[:：]|singer\s*[:：]|词曲唱(?:视)?\s*[:：]|原唱\s*(?:为|是|[:：])|使用音乐|乐曲\s*[:：]|BGM\s*[:：]|背景音乐\s*[:：]|(?:是由|由|是)\s*[^，,。；;\n]{1,45}\s*演唱|(?:^|\n)\s*(?:作词|填词|作曲|谱曲|编曲|制作人|混音)\s*[:：])/i.test(value);
+    return /(歌曲名称|歌曲名|歌名|曲名|作品名|中文名|歌曲原唱|原唱歌手|歌手名|歌手\s*[:：]|演唱者|演唱\s*[:：]|vocal(?:s)?\s*[:：]|singer\s*[:：]|performer\s*[:：]|词曲唱(?:视)?\s*[:：]|原唱\s*(?:为|是|[:：])|使用音乐|乐曲\s*[:：]|BGM\s*[:：]|背景音乐\s*[:：]|(?:是由|由|是)\s*[^，,。；;\n]{1,45}\s*演唱|(?:^|\n)\s*(?:作词|填词|作曲|谱曲|编曲|制作人|混音)\s*[:：])/i.test(value);
   }
 
   private hasBracketSyntax(value: string): boolean {
@@ -205,6 +205,7 @@ export class BiliMusicParser {
 
   private cleanSong(value: string): string {
     let text = this.removeNoiseBlocks(value);
+    text = text.replace(/^(?:歌曲分享|音乐分享|歌单分享|歌曲推荐|音乐推荐)\s*[:：|｜\-–—]\s*/i, '');
     const quoteTag = text.match(/^「([^」]{1,80})」\s*(.+)$/);
     if (quoteTag != null && (this.isNoise(quoteTag[1]) || quoteTag[1].length <= 4 || /\s/.test(quoteTag[1]))) {
       text = quoteTag[2].trim();
@@ -225,7 +226,7 @@ export class BiliMusicParser {
     text = text
       .replace(/^[\s:：|｜,，;；、-]+|[\s:：|｜,，;；、-]+$/g, '')
       .replace(/\s*[（(](改编版|翻唱版|女版|男版|DJ版|Remix|remix|伴奏版|纯享版|现场版)[^）)]*[）)]\s*$/i, '')
-      .replace(/\s*[（(][^）)]*(4K|8K|修复|无损|字幕|中日|中英)[^）)]*[）)]\s*$/i, '')
+      .replace(/\s*[（(][^）)]*(4K|8K|修复|无损|字幕|中日|中英|官方的?MV|Official Music Video|Lyrics? Video|歌词版(?:MV)?|动态歌词|音乐可视化)[^）)]*[）)]\s*$/i, '')
       .replace(/\s*(\||｜)\s*(音乐可视化|动态歌词|歌词版|官方MV|MV|Hi-?Res.*)$/i, '')
       .replace(/\s+(官方MV|歌词版MV|动态歌词|音乐可视化|百万豪装录音棚试听|百万级装备试听).*$/i, '')
       .replace(/\s*⧸\s*THE FIRST TAKE.*$/i, '')
@@ -247,7 +248,7 @@ export class BiliMusicParser {
       .replace(/\s*[《「〈<].*$/g, '')
       .replace(/\s*(创作(词曲|词|曲)?|作词|填词|作曲|谱曲|编曲|制作人|制作|混音|母带|词：|曲：|作词:|作曲:).*$/g, '')
       .replace(/(共同|合作|并)+$/g, '')
-      .replace(/(演唱|献唱|合唱|演绎)(的歌曲|的流行歌曲|的一首歌曲|的歌曲|歌曲)?$/g, '')
+      .replace(/(演唱|献唱|合唱|演绎)(的歌曲|的流行歌曲|的一首歌曲|歌曲)?$/g, '')
       .replace(/^(是由|由|歌曲由|音乐由|来自)+/g, '')
       .replace(/^(中国|华语|马来西亚|澳大利亚|美国|英国|日本|韩国|瑞典)\s*/g, '')
       .replace(/^(.*?)(最强厂牌|厂牌)(?=[\u3400-\u9FFF])/g, '')
@@ -332,7 +333,7 @@ export class BiliMusicParser {
       this.addCandidate('title', collaborationTitle, 88, entry, 'collaboration-title-marker', buckets);
     }
 
-    const singerRe = /(歌曲原唱|原唱歌手|歌手名|歌手|演唱者|演唱|vocal(?:s)?|singer|performer|singer)\s*[:：]\s*([^，,。；;\n|]+)/gi;
+    const singerRe = /(歌曲原唱|原唱歌手|歌手名|歌手|演唱者|演唱|vocal(?:s)?|singer|performer)\s*[:：]\s*([^，,。；;\n|]+)/gi;
     while ((match = singerRe.exec(source)) !== null) {
       const label = match[1];
       const score = label.indexOf('原唱') >= 0 ? 77 : (/vocal/i.test(label) ? 83 : 98);
@@ -361,6 +362,7 @@ export class BiliMusicParser {
     const performerRe = /(是由|由|是)\s*([^，,。；;\n]{1,45}?)\s*演唱(的歌曲|的流行歌曲|的一首歌曲|的歌曲|歌曲|的一首)?/g;
     while ((match = performerRe.exec(source)) !== null) {
       let performer = match[2]
+        .replace(/^(?:一首(?:歌曲|歌)?|一曲|一段|一支)\s*(?:由)?/, '')
         .replace(/(在|于)[^，,。；;\n]*$/g, '')
         .replace(/(并|且|同时)?(创作(词曲|词|曲)?|作词|填词|作曲|谱曲|编曲|制作人|制作).*$/g, '')
         .replace(/^(著名|知名|人气|实力派)\s*/g, '')

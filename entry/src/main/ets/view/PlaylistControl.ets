@@ -25,6 +25,14 @@ export struct PlaylistControl {
   @State searchKeyword: string = '';
   @State filteredIndices: number[] = [];
   private scroller: Scroller = new Scroller();
+  private appearScrollTimer?: number;
+
+  aboutToDisappear(): void {
+    if (this.appearScrollTimer !== undefined) {
+      clearTimeout(this.appearScrollTimer);
+      this.appearScrollTimer = undefined;
+    }
+  }
 
   private onSongListChange(): void {
     this.applyFilter();
@@ -37,14 +45,20 @@ export struct PlaylistControl {
     } else {
       const result: number[] = [];
       this.songList.forEach((item, i) => {
-        if (item.title.toLowerCase().includes(keyword) ||
-            item.singer.toLowerCase().includes(keyword)) {
+        const title = typeof item?.title === 'string' ? item.title : '';
+        const singer = typeof item?.singer === 'string' ? item.singer : '';
+        if (title.toLowerCase().includes(keyword) ||
+            singer.toLowerCase().includes(keyword)) {
           result.push(i);
         }
       });
       this.filteredIndices = result;
     }
-    this.scroller.scrollToIndex(0);
+    // The list is hosted inside a lazily-created sheet. Do not ask its
+    // scroller to move while the sheet is closed or before the List is mounted.
+    if (this.isShowSheet && this.filteredIndices.length > 0) {
+      this.scroller.scrollToIndex(0);
+    }
   }
 
   build() {
@@ -65,11 +79,27 @@ export struct PlaylistControl {
           Logger.info(TAG, 'playlist sheet appearing');
           this.searchKeyword = '';
           this.applyFilter();
-          setTimeout(() => {
-            this.scroller.scrollToIndex(this.selectIndex, false, ScrollAlign.CENTER);
+          if (this.appearScrollTimer !== undefined) {
+            clearTimeout(this.appearScrollTimer);
+          }
+          this.appearScrollTimer = setTimeout(() => {
+            this.appearScrollTimer = undefined;
+            if (!this.isShowSheet || this.filteredIndices.length === 0) {
+              return;
+            }
+            const selectedListIndex = this.filteredIndices.indexOf(this.selectIndex);
+            this.scroller.scrollToIndex(
+              selectedListIndex >= 0 ? selectedListIndex : 0,
+              false,
+              ScrollAlign.CENTER
+            );
           }, 0);
         },
         onWillDismiss: () => {
+          if (this.appearScrollTimer !== undefined) {
+            clearTimeout(this.appearScrollTimer);
+            this.appearScrollTimer = undefined;
+          }
           this.isShowSheet = false;
         }
       })
@@ -103,7 +133,10 @@ export struct PlaylistControl {
               selectIndex: this.selectIndex
             })
           }
-        }, (globalIndex: number) => this.songList[globalIndex]?.bvid ?? String(globalIndex))
+        }, (globalIndex: number) => {
+          const item = this.songList[globalIndex];
+          return item ? `${item.bvid}:${item.cid}` : String(globalIndex);
+        })
       }
       .height(StyleConstants.FULL_HEIGHT)
       .width(StyleConstants.FULL_WIDTH)

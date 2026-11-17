@@ -19,8 +19,6 @@ import { common } from '@kit.AbilityKit';
 import { PreferencesUtil } from '../PreferencesUtil';
 import { MediaResourceManager } from '../MediaResourceManager';
 import { audio } from '@kit.AudioKit';
-import { cryptoFramework } from '@kit.CryptoArchitectureKit';
-import { wbiSigner } from '../BiliWbiUtil';
 import { getCurrentVersion, incrementVersion, isVersionMatch } from '../VersionUtil';
 import { APP_STORAGE_KEYS } from '../../constants/AppStorageKeys';
 import { image } from '@kit.ImageKit';
@@ -33,7 +31,8 @@ export class MediaControlCenter {
   private avPlayerController: AVPlayerController | undefined = undefined;
   private context: common.UIAbilityContext | undefined = AppStorage.get(APP_STORAGE_KEYS.CONTEXT);
   private songItemBuilder: SongItemBuilder = new SongItemBuilder();
-  private playMode: MusicPlayMode | undefined = undefined;
+  // Default to ordered playback until persisted preferences are loaded.
+  private playMode: MusicPlayMode = MusicPlayMode.ORDER;
   private songList: SongItem[] = [];
   private musicIndex: number = 0;
   private audioSessionManager: audio.AudioSessionManager | undefined = undefined;
@@ -42,6 +41,7 @@ export class MediaControlCenter {
   private audioSessionOperationPromise: Promise<void> = Promise.resolve();
   private static mediaControlFunction: MediaControlCenter;
   private lastProgressUpdateTime: number = 0;
+  private lastAVSessionProgressUpdateTime: number = 0;
   private currentPixelMap: PixelMap | undefined = undefined;
   // A user/system pause or stop during track loading must override the
   // automatic-play behavior of the in-flight track switch.
@@ -53,10 +53,6 @@ export class MediaControlCenter {
   // Speed is intentionally page-scoped rather than persisted. Keep a pending
   // value because the control can be changed before AVPlayer initialization.
   private desiredPlaybackSpeed: number = 1;
-  private static readonly SUPPORTED_PLAYBACK_SPEEDS: number[] = [
-    0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2
-  ];
-
   private setLoading(loading: boolean) {
     AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, loading);
   }
@@ -159,10 +155,6 @@ export class MediaControlCenter {
 
     const audioManager = audio.getAudioManager();
     const sessionManager = audioManager.getSessionManager();
-    if (!isVersionMatch(expectedVersion)) {
-      return;
-    }
-
     this.audioSessionManager = sessionManager;
     await this.activateAudioSession(
       audio.AudioConcurrencyMode.CONCURRENCY_PAUSE_OTHERS,
@@ -232,20 +224,28 @@ export class MediaControlCenter {
 
   private async doInit(initVersion: number): Promise<void> {
     this.context = AppStorage.get(APP_STORAGE_KEYS.CONTEXT);
+    this.songList = [];
+    this.musicIndex = 0;
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.SONG_LIST, []);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.SELECT_INDEX, 0);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_FAVORITE, false);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_BVID, '');
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_CID, 0);
     if (!isVersionMatch(initVersion)) {
       return;
     }
-    await wbiSigner.fetchAndCacheWbiKeys();
-    if (!isVersionMatch(initVersion)) {
-      return;
-    }
-    const favoriteSongs = await getFavoriteDetail(ContentConstants.FAV_ID);
+    const favoriteSongs = await getFavoriteDetail(
+      ContentConstants.FAV_ID,
+      undefined,
+      () => isVersionMatch(initVersion)
+    );
     if (!isVersionMatch(initVersion)) {
       return;
     }
     this.songList = favoriteSongs;
     AppStorage.setOrCreate(APP_STORAGE_KEYS.SONG_LIST, favoriteSongs);
     if (this.songList.length === 0) {
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_FAVORITE, false);
       AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, '歌单为空，请检查网络连接后重试');
       this.setLoading(false);
       return;
@@ -253,6 +253,13 @@ export class MediaControlCenter {
 
     this.musicIndex = 0;
     AppStorage.setOrCreate(APP_STORAGE_KEYS.SELECT_INDEX, this.musicIndex);
+    // Favorite state belongs to the in-app player, not to the optional lock
+    // screen session. Synchronize it even when AVSession creation is unavailable.
+    this.avSessionController = AVSessionController.getInstance();
+    const firstSong = this.songList[this.musicIndex];
+    if (firstSong) {
+      this.avSessionController.getAndUpdateFavoriteState(firstSong.bvid);
+    }
     MediaResourceManager.getInstance().cleanupOrphanResources(this.songList);
 
     // AVPlayer is the required playback dependency. Lock-screen session and
@@ -307,6 +314,8 @@ export class MediaControlCenter {
 
   public release(): void {
     this.isInitialized = false;
+    this.songList = [];
+    this.musicIndex = 0;
     this.desiredPlaybackSpeed = 1;
     this.playbackIntentGeneration++;
     this.pendingAutoPlayVersion = -1;
@@ -345,6 +354,11 @@ export class MediaControlCenter {
     }
 
     AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_PLAY, false);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_FAVORITE, false);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.SONG_LIST, []);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.SELECT_INDEX, 0);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_BVID, '');
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_CID, 0);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.IS_LOADING, false);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.PROGRESS, 0);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_TIME, '00:00');
@@ -369,6 +383,7 @@ export class MediaControlCenter {
     const contextToStop = this.context;
     this.context = undefined;
     this.lastProgressUpdateTime = 0;
+    this.lastAVSessionProgressUpdateTime = 0;
     if (contextToStop) {
       BackgroundUtil.stopContinuousTask(contextToStop);
     }
@@ -391,6 +406,7 @@ export class MediaControlCenter {
     AppStorage.setOrCreate(APP_STORAGE_KEYS.TOTAL_MS_TIME, 0);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.PROGRESS_MAX, 0);
     this.updateMusicIndex(newIndex);
+    this.avSessionController?.setAVMetadata();
 
     try {
       // Stop the previous track without treating the internal transition as
@@ -416,11 +432,16 @@ export class MediaControlCenter {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      Logger.error(TAG, `switchToIndex failed: ${message}`);
-      if (isVersionMatch(currentVersion)) {
-        AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, `切换歌曲失败: ${message}`);
+      if (!isVersionMatch(currentVersion)) {
+        Logger.debug(TAG, `Ignoring obsolete song-switch failure: ${message}`);
+        return;
       }
+      Logger.error(TAG, `switchToIndex failed: ${message}`);
+      AppStorage.setOrCreate(APP_STORAGE_KEYS.ERROR_MESSAGE, `切换歌曲失败: ${message}`);
     } finally {
+      // Keep a failed track's pending auto-play intent until its asynchronous
+      // AVPlayer fallback handler captures it. A user pause/stop invalidates it
+      // through playbackIntentGeneration; a new song replaces its version.
       // An obsolete switch must not clear the loading state of a newer switch.
       if (isVersionMatch(currentVersion)) {
         this.setLoading(false);
@@ -475,11 +496,12 @@ export class MediaControlCenter {
       try {
         pixelMap = await this.createCoverPixelMap(bvid);
       } catch (cacheError) {
+        const cacheErrorMessage = cacheError instanceof Error ? cacheError.message : String(cacheError);
         if (!hadCachedCover || !isVersionMatch(currentVersion)) {
-          throw new Error(cacheError.message);
+          throw new Error(cacheErrorMessage);
         }
 
-        Logger.warn(TAG, `Cached cover is unreadable; refreshing ${bvid}: ${cacheError.message}`);
+        Logger.warn(TAG, `Cached cover is unreadable; refreshing ${bvid}: ${cacheErrorMessage}`);
         mediaMgr.removeCover(bvid);
         await mediaMgr.downloadCover(bvid, url);
         if (!isVersionMatch(currentVersion)) {
@@ -531,6 +553,20 @@ export class MediaControlCenter {
       Logger.error(TAG, 'avPlayerController is undefined');
       return;
     }
+
+    // If URL resolution failed before AVPlayer received a source, a normal
+    // play() call cannot recover because there is nothing configured to play.
+    // Once loading has ended, retry the current track just as we do after a
+    // terminal native-player error.
+    const isLoading = AppStorage.get<boolean>(APP_STORAGE_KEYS.IS_LOADING) ?? false;
+    const currentVersion = getCurrentVersion();
+    const hasCurrentSource = this.avPlayerController.hasActiveSourceForVersion(currentVersion);
+    if (!isLoading && (this.avPlayerController.avPlayer?.state === 'error' || !hasCurrentSource)) {
+      Logger.info(TAG, 'Retrying current track because its playback source is unavailable');
+      await this.switchToIndex(this.musicIndex);
+      return;
+    }
+
     try {
       await this.avPlayerController.play();
       // A later pause/stop must prevent this older continuation from starting
@@ -566,30 +602,6 @@ export class MediaControlCenter {
 
   // [End StartContinuousTask]
 
-  // Obtain a random number in the half-open interval [0, 1).
-  // Four bytes are required so playlists with more than 256 tracks can select
-  // every index instead of being restricted to the first 256 entries.
-  private getRandom0To1(): number {
-    try {
-      const rand = cryptoFramework.createRandom();
-      const randomBytes = rand.generateRandomSync(4).data;
-      if (randomBytes.length < 4) {
-        throw new Error('Secure random generator returned insufficient data');
-      }
-
-      const randomValue = randomBytes[0] * 0x1000000 +
-        randomBytes[1] * 0x10000 +
-        randomBytes[2] * 0x100 +
-        randomBytes[3];
-      return randomValue / 0x100000000;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      Logger.warn(TAG, `Secure random unavailable; using non-cryptographic fallback: ${message}`);
-      // Playlist ordering does not require cryptographic randomness.
-      return Math.random();
-    }
-  }
-
   // Select a different track without an unbounded retry loop.
   private setRandom(): number {
     const songCount = this.songList.length;
@@ -597,17 +609,17 @@ export class MediaControlCenter {
       return 0;
     }
 
-    const random0To1 = this.getRandom0To1();
+    const random0To1 = Math.random();
     const currentIndexIsValid = Number.isInteger(this.musicIndex) &&
       this.musicIndex >= 0 && this.musicIndex < songCount;
     if (!currentIndexIsValid) {
-      return Math.min(Math.floor(random0To1 * songCount), songCount - 1);
+      return Math.floor(random0To1 * songCount);
     }
 
     // Choose an offset in [1, songCount), which excludes the current track.
-    const offset = 1 + Math.min(Math.floor(random0To1 * (songCount - 1)), songCount - 2);
+    const offset = 1 + Math.floor(random0To1 * (songCount - 1));
     const nextIndex = (this.musicIndex + offset) % songCount;
-    Logger.info(TAG, `random num is ${nextIndex}, max length is ${songCount - 1}`);
+    Logger.debug(TAG, `Shuffle selected index ${nextIndex}`);
     return nextIndex;
   }
 
@@ -696,14 +708,24 @@ export class MediaControlCenter {
 
   // Set play mode
   public setPlayMode(playMode: MusicPlayMode | undefined): void {
-    this.playMode = playMode ?? MusicPlayMode.ORDER;
-    this.setPlayModeToControlArea(this.playMode);
+    const isSupportedMode = playMode === MusicPlayMode.SINGLE_CYCLE ||
+      playMode === MusicPlayMode.ORDER || playMode === MusicPlayMode.RANDOM;
+    this.playMode = isSupportedMode ? playMode as MusicPlayMode : MusicPlayMode.ORDER;
+    if (playMode !== undefined && !isSupportedMode) {
+      Logger.warn(TAG, `Unsupported playback mode ${playMode}; falling back to ordered playback`);
+    }
+    // Publish the selected mode to the system immediately. Preference writes
+    // stay after the AVSession request so they cannot delay dismissal of the
+    // system's mode selector.
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.PLAY_MODE, this.playMode);
     this.avSessionController?.setPlayModeToAVSession(this.playMode);
-  }
 
-  private setPlayModeToControlArea(playMode: MusicPlayMode): void {
-    AppStorage.setOrCreate(APP_STORAGE_KEYS.PLAY_MODE, playMode);
-    PreferencesUtil.getInstance().preferencesPut(PLAY_MODE_ID, playMode);
+    // preferencesPut updates the in-memory value immediately; disk writes are
+    // already coalesced by PreferencesUtil, so another timer is unnecessary.
+    const preferences = PreferencesUtil.getInstance();
+    if (preferences.getValue(PLAY_MODE_ID) !== this.playMode) {
+      preferences.preferencesPut(PLAY_MODE_ID, this.playMode);
+    }
   }
 
   public getVolume(): number {
@@ -715,10 +737,9 @@ export class MediaControlCenter {
   }
 
   public setVolume(volume: number): void {
-    const requestedVolume = Number.isFinite(volume) ? volume : DEFAULT_VOLUME;
-    const normalizedVolume = Math.max(0, Math.min(100, requestedVolume));
     try {
-      this.avPlayerController?.setVolume(normalizedVolume);
+      // AVPlayerController owns volume validation and normalization.
+      this.avPlayerController?.setVolume(volume);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       Logger.error(TAG, `set volume failed: ${message}`);
@@ -742,9 +763,7 @@ export class MediaControlCenter {
       return;
     }
 
-    this.desiredPlaybackSpeed = MediaControlCenter.SUPPORTED_PLAYBACK_SPEEDS.includes(speed)
-      ? speed
-      : 1;
+    this.desiredPlaybackSpeed = AVPlayerController.normalizePlaybackSpeed(speed);
     if (this.desiredPlaybackSpeed !== speed) {
       Logger.warn(TAG, `Unsupported playback speed ${speed}; falling back to 1x`);
     }
@@ -805,6 +824,7 @@ export class MediaControlCenter {
       : DEFAULT_VOLUME;
     Logger.info(TAG, `setVolumeFromPrefer volume is ${volume}`);
     this.setVolume(volume);
+    this.persistVolume(volume);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_VOLUME, volume);
   }
 
@@ -871,6 +891,10 @@ export class MediaControlCenter {
       return;
     }
 
+    const duration = AppStorage.get<number>(APP_STORAGE_KEYS.TOTAL_MS_TIME);
+    const normalizedMs = duration !== undefined && Number.isFinite(duration) && duration > 0
+      ? Math.min(ms, duration)
+      : ms;
     const now = Date.now();
     if (!forceUpdate && now - this.lastProgressUpdateTime < 300) {
       return;
@@ -879,18 +903,24 @@ export class MediaControlCenter {
 
     // UI playback progress is independent of the optional lock-screen session.
     // Keep the in-app controls responsive even when AVSession is unavailable.
-    AppStorage.setOrCreate(APP_STORAGE_KEYS.PROGRESS, ms);
-    const newTimeStr = MediaTools.msToCountdownTime(ms);
+    AppStorage.setOrCreate(APP_STORAGE_KEYS.PROGRESS, normalizedMs);
+    const newTimeStr = MediaTools.msToCountdownTime(normalizedMs);
     const oldTimeStr = AppStorage.get<string>(APP_STORAGE_KEYS.CURRENT_TIME);
     if (newTimeStr !== oldTimeStr) {
       AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_TIME, newTimeStr);
     }
 
-    try {
-      this.avSessionController?.setProgressState(ms);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      Logger.warn(TAG, `AVSession progress update skipped: ${message}`);
+    // The in-app slider/time display keeps its 300ms cadence. AVSession only
+    // needs periodic position snapshots; sending one every UI tick needlessly
+    // queues system playback-state IPC behind favorite/loop-mode commands.
+    if (forceUpdate || now - this.lastAVSessionProgressUpdateTime >= 1000) {
+      this.lastAVSessionProgressUpdateTime = now;
+      try {
+        this.avSessionController?.setProgressState(normalizedMs);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.warn(TAG, `AVSession progress update skipped: ${message}`);
+      }
     }
   }
 

@@ -51,7 +51,12 @@ export struct PlayerInfoComponent {
 
   aboutToDisappear(): void {
     if (canIUse('SystemCapability.Window.SessionManager')) {
-      display.off('foldDisplayModeChange', this.callback);
+      try {
+        display.off('foldDisplayModeChange', this.callback);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.warn(TAG, `Failed to detach fold display callback: ${message}`);
+      }
     }
   }
 

@@ -44,28 +44,75 @@ class WbiSigner {
   private mixinKey: string = '';
   private fetchPromise: Promise<void> | null = null;
   private keyExpiresAt: number = 0;
+  private forcedRefreshGeneration: number = 0;
   private static readonly KEY_TTL_MS: number = 23 * 60 * 60 * 1000;
+  private static readonly MAX_KEY_FETCH_ATTEMPTS: number = 3;
 
-  async fetchAndCacheWbiKeys(): Promise<void> {
-    if (this.fetchPromise) {
-      return this.fetchPromise;
+  private hasUsableKey(): boolean {
+    return this.mixinKey.length === 32 && Date.now() < this.keyExpiresAt;
+  }
+
+  async fetchAndCacheWbiKeys(forceRefresh: boolean = false): Promise<void> {
+    const refreshGenerationAtCall = this.forcedRefreshGeneration;
+    if (!forceRefresh && this.hasUsableKey()) {
+      return;
     }
-    this.fetchPromise = this.doFetchAndCache();
+
+    while (this.fetchPromise) {
+      const pendingFetch = this.fetchPromise;
+      try {
+        await pendingFetch;
+      } catch (error) {
+        // A force-refresh caller must still be able to replace a failed normal
+        // fetch. Normal callers receive the original failure without spawning
+        // a storm of duplicate requests.
+        if (!forceRefresh) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(message);
+        }
+      }
+      if (!forceRefresh && this.hasUsableKey()) {
+        return;
+      }
+      if (forceRefresh && this.forcedRefreshGeneration > refreshGenerationAtCall) {
+        return;
+      }
+    }
+
+    if (!forceRefresh && this.hasUsableKey()) {
+      return;
+    }
+
+    this.fetchPromise = this.doFetchAndCache(forceRefresh);
+    const pendingFetch = this.fetchPromise;
     try {
-      await this.fetchPromise;
+      await pendingFetch;
+      if (!this.hasUsableKey()) {
+        throw new Error('WBI key fetch completed without a usable signing key');
+      }
+      if (forceRefresh) {
+        this.forcedRefreshGeneration++;
+      }
     } finally {
-      this.fetchPromise = null;
+      if (this.fetchPromise === pendingFetch) {
+        this.fetchPromise = null;
+      }
     }
   }
 
-  private async doFetchAndCache(): Promise<void> {
-    let requestStartedAt = 0;
-    let responseCode: number | undefined = undefined;
-    let diagnosticLogged = false;
-    try {
+  private async doFetchAndCache(forceRefresh: boolean = false): Promise<void> {
+    if (forceRefresh) {
+      // Do not silently fall back to a key that the server has just rejected.
+      this.imgKey = '';
+      this.subKey = '';
+      this.mixinKey = '';
+      this.keyExpiresAt = 0;
+      PreferencesUtil.getInstance().preferencesPut(WbiSigner.CACHE_KEY_TIME, '0');
+    } else {
       const cached = await this.getCachedKeys();
       const now = Date.now();
-      if (cached && cached.time <= now && now - cached.time < WbiSigner.KEY_TTL_MS) {
+      if (cached && cached.time <= now && now - cached.time < WbiSigner.KEY_TTL_MS &&
+        /^[A-Za-z0-9_-]{32}$/.test(cached.imgKey) && /^[A-Za-z0-9_-]{32}$/.test(cached.subKey)) {
         const cachedMixinKey = this.generateMixinKey(cached.imgKey, cached.subKey);
         if (cachedMixinKey.length === 32) {
           this.imgKey = cached.imgKey;
@@ -76,10 +123,17 @@ class WbiSigner {
           return;
         }
         Logger.warn(TAG, 'Cached WBI keys are invalid; fetching fresh keys');
+      } else if (cached) {
+        Logger.warn(TAG, 'Cached WBI key components are malformed; fetching fresh keys');
       }
+    }
 
+    let lastError: Error = new Error('WBI key request failed');
+    for (let attempt = 1; attempt <= WbiSigner.MAX_KEY_FETCH_ATTEMPTS; attempt++) {
       const httpRequest = http.createHttp();
-      requestStartedAt = Date.now();
+      const requestStartedAt = Date.now();
+      let responseCode: number | undefined = undefined;
+      let canRetry = false;
       try {
         const response = await httpRequest.request('https://api.bilibili.com/x/web-interface/nav', {
           method: http.RequestMethod.GET,
@@ -93,42 +147,78 @@ class WbiSigner {
 
         responseCode = response.responseCode;
         if (response.responseCode !== 200) {
-          NetworkDiagnostics.failure(TAG, 'wbi.nav', requestStartedAt, 'http_error', 1, response.responseCode);
-          diagnosticLogged = true;
+          canRetry = response.responseCode === 408 || response.responseCode === 425 ||
+            response.responseCode === 429 || response.responseCode >= 500;
           throw new Error(`WBI key request failed: HTTP ${response.responseCode}`);
         }
-        const data: BiliWbiResponse = JSON.parse(response.result as string);
-        const imgUrl: string = data.data.wbi_img.img_url;
-        const subUrl: string = data.data.wbi_img.sub_url;
-        if (!imgUrl || !subUrl) {
-          throw new Error('WBI key fields are missing from nav response');
+        if (typeof response.result !== 'string') {
+          throw new Error('WBI key response body is not a JSON string');
+        }
+
+        const responseData: BiliWbiResponse = JSON.parse(response.result);
+        const imgUrl = responseData.data?.wbi_img?.img_url;
+        const subUrl = responseData.data?.wbi_img?.sub_url;
+        if (typeof imgUrl !== 'string' || typeof subUrl !== 'string' ||
+          !/^https?:\/\//i.test(imgUrl) || !/^https?:\/\//i.test(subUrl)) {
+          throw new Error('WBI key fields are missing or invalid in nav response');
         }
 
         const imgKey = this.extractKeyFromUrl(imgUrl);
         const subKey = this.extractKeyFromUrl(subUrl);
+        if (imgKey.length !== 32 || subKey.length !== 32) {
+          throw new Error('WBI image key fields must each contain exactly 32 characters');
+        }
         const mixinKey = this.generateMixinKey(imgKey, subKey);
         if (mixinKey.length !== 32) {
           throw new Error('Failed to generate a valid WBI mixin key');
         }
+
         const fetchedAt = Date.now();
         this.imgKey = imgKey;
         this.subKey = subKey;
         this.mixinKey = mixinKey;
         this.keyExpiresAt = fetchedAt + WbiSigner.KEY_TTL_MS;
         await this.cacheKeys(this.imgKey, this.subKey, fetchedAt);
-        NetworkDiagnostics.success(TAG, 'wbi.nav', requestStartedAt, response.responseCode, 1);
-        diagnosticLogged = true;
+        NetworkDiagnostics.success(TAG, 'wbi.nav', requestStartedAt, response.responseCode, attempt);
         Logger.info(TAG, 'WBI keys fetched and cached');
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (responseCode === undefined) {
+          // Transport failures are retryable; malformed JSON and invalid key
+          // payloads are deterministic and should fail fast.
+          canRetry = true;
+        }
+        NetworkDiagnostics.failure(
+          TAG,
+          'wbi.nav',
+          requestStartedAt,
+          responseCode === undefined ? 'transport_error' : 'request_or_parse_error',
+          attempt,
+          responseCode,
+          undefined,
+          NetworkDiagnostics.getSystemErrorCode(error)
+        );
+        Logger.warn(TAG, `WBI key request attempt ${attempt} failed: ${lastError.message}`);
       } finally {
-        httpRequest.destroy();
+        try {
+          httpRequest.destroy();
+        } catch {
+          // Destroy is best-effort; the primary request outcome is preserved.
+        }
       }
-    } catch (error) {
-      if (requestStartedAt > 0 && !diagnosticLogged) {
-        NetworkDiagnostics.failure(TAG, 'wbi.nav', requestStartedAt, 'request_or_parse_error', 1, responseCode, undefined, NetworkDiagnostics.getSystemErrorCode(error));
+
+      if (!canRetry || attempt === WbiSigner.MAX_KEY_FETCH_ATTEMPTS) {
+        break;
       }
-      const message = error instanceof Error ? error.message : String(error);
-      Logger.error(TAG, `Error fetching WBI keys: ${message}`);
+      await new Promise<void>((resolve) => setTimeout(resolve, 300 * Math.pow(2, attempt - 1)));
     }
+
+    this.imgKey = '';
+    this.subKey = '';
+    this.mixinKey = '';
+    this.keyExpiresAt = 0;
+    throw lastError;
   }
 
   async getSignedParams(params: Map<string, string | number>): Promise<Map<string, string | number>> {
@@ -148,7 +238,7 @@ class WbiSigner {
     for (const key of sortedKeys) {
       const value = signedParams.get(key);
       if (value !== undefined) {
-        queryParts.push(`${key}=${encodeURIComponent(value.toString())}`);
+        queryParts.push(`${key}=${encodeURIComponent(value.toString()).replace(/[!'()*]/g, '')}`);
       }
     }
     const queryString = queryParts.join('&');
@@ -202,7 +292,9 @@ class WbiSigner {
       const imgKey = prefs.getValue(WbiSigner.CACHE_KEY_IMG) as string;
       const subKey = prefs.getValue(WbiSigner.CACHE_KEY_SUB) as string;
       const timeStr = prefs.getValue(WbiSigner.CACHE_KEY_TIME) as string;
-      if (imgKey && subKey && timeStr) {
+      if (typeof imgKey === 'string' && imgKey.length > 0 &&
+        typeof subKey === 'string' && subKey.length > 0 &&
+        typeof timeStr === 'string' && timeStr.length > 0) {
         const time = Number(timeStr);
         if (Number.isFinite(time) && time > 0) {
           return { imgKey, subKey, time };
