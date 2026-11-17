@@ -478,6 +478,8 @@ export class BiliMusicParser {
         from = close + 1;
       }
     }
+    // Keep matches in source order; callers use the first match to detect a leading tag.
+    result.sort((left: BracketMatch, right: BracketMatch): number => left.start - right.start);
     return result;
   }
 

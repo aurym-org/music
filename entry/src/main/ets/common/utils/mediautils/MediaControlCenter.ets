@@ -365,7 +365,6 @@ export class MediaControlCenter {
     AppStorage.setOrCreate(APP_STORAGE_KEYS.TOTAL_TIME, '00:00');
     AppStorage.setOrCreate(APP_STORAGE_KEYS.TOTAL_MS_TIME, 0);
     AppStorage.setOrCreate(APP_STORAGE_KEYS.PROGRESS_MAX, 0);
-    AppStorage.setOrCreate(APP_STORAGE_KEYS.CURRENT_PIXEL_MAP, undefined);
     const audioSessionManager = this.audioSessionManager;
     this.audioSessionManager = undefined;
     if (audioSessionManager) {

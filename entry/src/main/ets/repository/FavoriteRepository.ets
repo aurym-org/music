@@ -368,8 +368,7 @@ async function getFavoriteDetail(
 
     let nextPage = 2;
     let hasMore = firstResult.hasMore;
-    let countEstimateExhausted = firstResult.rawCount === 0 && !firstResult.hasMore &&
-      (totalPages === undefined || totalPages <= 1);
+    let countEstimateExhausted = firstResult.rawCount === 0 && !firstResult.hasMore;
 
     // Continue when either the API continuation flag or the total-count
     // estimate indicates more data. The estimate is advisory: an empty page
