@@ -130,21 +130,6 @@ export class PreferencesUtil {
     }
   }
 
-  // Check whether a key exists.
-  preferencesHas(key: string): boolean {
-    const store = this.preferences;
-    if (!store) {
-      return false;
-    }
-    try {
-      return store.hasSync(key);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      Logger.warn(TAG, `Failed to read preference existence for '${key}': ${message}`);
-      return false;
-    }
-  }
-
   getValue(key: string): preferences.ValueType | undefined {
     const store = this.preferences;
     if (!store) {
