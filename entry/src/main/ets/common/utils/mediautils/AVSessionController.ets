@@ -249,7 +249,6 @@ export class AVSessionController {
       }
       if (mediaImage) {
         metadata.mediaImage = mediaImage;
-        metadata.avQueueImage = mediaImage;
       }
 
       // Serialize writes and discard queued metadata that has already become
